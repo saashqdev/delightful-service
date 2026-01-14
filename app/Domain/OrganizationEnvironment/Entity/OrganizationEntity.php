@@ -1,0 +1,322 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\OrganizationEnvironment\Entity;
+
+use App\Domain\OrganizationEnvironment\Entity\ValueObject\OrganizationSyncStatus;
+use App\ErrorCode\PermissionErrorCode;
+use App\Infrastructure\Core\AbstractEntity;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use DateTime;
+
+/**
+ * organizationactualbody.
+ */
+class OrganizationEntity extends AbstractEntity
+{
+    protected ?int $id = null;
+
+    protected string $delightfulOrganizationCode = '';
+
+    protected string $name = '';
+
+    protected ?string $platformType = null;
+
+    protected ?string $logo = null;
+
+    protected ?string $introduction = null;
+
+    protected ?string $contactUser = null;
+
+    protected ?string $contactMobile = null;
+
+    protected string $industryType = '';
+
+    protected ?string $number = null;
+
+    protected int $status = 1; // status: 1=normal, 2=disable
+
+    protected ?string $creatorId = null;
+
+    protected int $type = 0; // organizationtype 0:teamorganization 1:personorganization
+
+    protected ?DateTime $createdAt = null;
+
+    protected ?DateTime $updatedAt = null;
+
+    protected ?DateTime $deletedAt = null;
+
+    protected ?int $seats = null; // seat count
+
+    protected ?string $syncType = null; // sametype
+
+    protected ?OrganizationSyncStatus $syncStatus = null; // samestatus
+
+    protected ?DateTime $syncTime = null; // sametime
+
+    public function shouldCreate(): bool
+    {
+        return empty($this->id);
+    }
+
+    public function prepareForCreation(): void
+    {
+        $this->validate();
+
+        if (empty($this->createdAt)) {
+            $this->createdAt = new DateTime();
+        }
+
+        if (empty($this->updatedAt)) {
+            $this->updatedAt = $this->createdAt;
+        }
+
+        $this->id = null;
+    }
+
+    public function prepareForModification(): void
+    {
+        $this->validate();
+        $this->updatedAt = new DateTime();
+    }
+
+    public function isNormal(): bool
+    {
+        return $this->status === 1;
+    }
+
+    public function enable(): void
+    {
+        $this->status = 1;
+    }
+
+    public function disable(): void
+    {
+        $this->status = 2;
+    }
+
+    // Getters and Setters
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function setId(null|int|string $id): void
+    {
+        $this->id = $id ? (int) $id : null;
+    }
+
+    public function getDelightfulOrganizationCode(): string
+    {
+        return $this->delightfulOrganizationCode;
+    }
+
+    public function setDelightfulOrganizationCode(string $delightfulOrganizationCode): void
+    {
+        $this->delightfulOrganizationCode = $delightfulOrganizationCode;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function setName(string $name): void
+    {
+        $this->name = $name;
+    }
+
+    public function getPlatformType(): ?string
+    {
+        return $this->platformType;
+    }
+
+    public function setPlatformType(?string $platformType): void
+    {
+        $this->platformType = $platformType;
+    }
+
+    public function getLogo(): ?string
+    {
+        return $this->logo;
+    }
+
+    public function setLogo(?string $logo): void
+    {
+        $this->logo = $logo;
+    }
+
+    public function getIntroduction(): ?string
+    {
+        return $this->introduction;
+    }
+
+    public function setIntroduction(?string $introduction): void
+    {
+        $this->introduction = $introduction;
+    }
+
+    public function getContactUser(): ?string
+    {
+        return $this->contactUser;
+    }
+
+    public function setContactUser(?string $contactUser): void
+    {
+        $this->contactUser = $contactUser;
+    }
+
+    public function getContactMobile(): ?string
+    {
+        return $this->contactMobile;
+    }
+
+    public function setContactMobile(?string $contactMobile): void
+    {
+        $this->contactMobile = $contactMobile;
+    }
+
+    public function getIndustryType(): string
+    {
+        return $this->industryType;
+    }
+
+    public function setIndustryType(string $industryType): void
+    {
+        $this->industryType = $industryType;
+    }
+
+    public function getNumber(): ?string
+    {
+        return $this->number;
+    }
+
+    public function setNumber(?string $number): void
+    {
+        $this->number = $number;
+    }
+
+    public function getStatus(): int
+    {
+        return $this->status;
+    }
+
+    public function setStatus(int $status): void
+    {
+        $this->status = $status;
+    }
+
+    public function getCreatorId(): ?string
+    {
+        return $this->creatorId;
+    }
+
+    public function setCreatorId(?string $creatorId): void
+    {
+        $this->creatorId = $creatorId;
+    }
+
+    public function getType(): int
+    {
+        return $this->type;
+    }
+
+    public function setType(int $type): void
+    {
+        $this->type = $type;
+    }
+
+    public function getCreatedAt(): ?DateTime
+    {
+        return $this->createdAt;
+    }
+
+    public function setCreatedAt(?DateTime $createdAt): void
+    {
+        $this->createdAt = $createdAt;
+    }
+
+    public function getUpdatedAt(): ?DateTime
+    {
+        return $this->updatedAt;
+    }
+
+    public function setUpdatedAt(?DateTime $updatedAt): void
+    {
+        $this->updatedAt = $updatedAt;
+    }
+
+    public function getDeletedAt(): ?DateTime
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(?DateTime $deletedAt): void
+    {
+        $this->deletedAt = $deletedAt;
+    }
+
+    public function getSeats(): ?int
+    {
+        return $this->seats;
+    }
+
+    public function setSeats(?int $seats): void
+    {
+        $this->seats = $seats;
+    }
+
+    public function getSyncType(): ?string
+    {
+        return $this->syncType;
+    }
+
+    public function setSyncType(?string $syncType): void
+    {
+        $this->syncType = $syncType;
+    }
+
+    public function getSyncStatus(): ?OrganizationSyncStatus
+    {
+        return $this->syncStatus;
+    }
+
+    public function setSyncStatus(null|int|OrganizationSyncStatus $syncStatus): void
+    {
+        if ($syncStatus === null || $syncStatus instanceof OrganizationSyncStatus) {
+            $this->syncStatus = $syncStatus;
+            return;
+        }
+
+        $this->syncStatus = OrganizationSyncStatus::from($syncStatus);
+    }
+
+    public function getSyncTime(): ?DateTime
+    {
+        return $this->syncTime;
+    }
+
+    public function setSyncTime(?DateTime $syncTime): void
+    {
+        $this->syncTime = $syncTime;
+    }
+
+    protected function validate(): void
+    {
+        if (empty($this->delightfulOrganizationCode)) {
+            ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_CODE_REQUIRED);
+        }
+
+        if (empty($this->name)) {
+            ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_NAME_REQUIRED);
+        }
+
+        if (empty($this->industryType)) {
+            ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_INDUSTRY_TYPE_REQUIRED);
+        }
+    }
+}

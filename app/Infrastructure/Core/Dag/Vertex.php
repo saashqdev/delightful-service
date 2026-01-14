@@ -1,0 +1,68 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Infrastructure\Core\Dag;
+
+class Vertex
+{
+    public string $key;
+
+    /**
+     * @var callable
+     */
+    public $value;
+
+    /**
+     * @var array<Vertex>
+     */
+    public array $parents = [];
+
+    /**
+     * @var array<Vertex>
+     */
+    public array $children = [];
+
+    protected bool $isRoot = false;
+
+    public static function make(callable $job, ?string $key = null): self
+    {
+        $closure = $job(...);
+        if ($key === null) {
+            $key = spl_object_hash($closure);
+        }
+
+        $v = new Vertex();
+        $v->key = $key;
+        $v->value = $closure;
+        return $v;
+    }
+
+    public static function of(Runner $job, ?string $key = null): self
+    {
+        if ($key === null) {
+            $key = spl_object_hash($job);
+        }
+
+        $v = new Vertex();
+        $v->key = $key;
+        $v->value = [$job, 'run'];
+        return $v;
+    }
+
+    public function isRoot(): bool
+    {
+        return $this->isRoot;
+    }
+
+    /**
+     * markforrootsectionpoint.
+     */
+    public function markAsRoot(): void
+    {
+        $this->isRoot = true;
+    }
+}

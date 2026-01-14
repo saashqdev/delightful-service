@@ -1,0 +1,53 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace HyperfTest\Cases\Api\Permission;
+
+use App\Infrastructure\Util\Auth\PermissionChecker;
+use HyperfTest\Cases\Api\AbstractHttpTest;
+use PHPUnit\Framework\Attributes\CoversClass;
+
+/**
+ * @internal
+ */
+#[CoversClass(PermissionChecker::class)]
+class OperationPermissionApiTest extends AbstractHttpTest
+{
+    public const string API = '/api/v1/operation-permissions/organizations/admin';
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+    }
+
+    /**
+     * testgetuserorganizationadministratorlist - successsituation.
+     */
+    public function testGetUserOrganizationAdminListSuccess(): void
+    {
+        // sendGETrequesttoAPIinterface
+        $response = $this->get(self::API, [], $this->getCommonHeaders());
+
+        // ifreturnautherror,skiptest
+        if (isset($response['code']) && in_array($response['code'], [401, 403, 2179, 3035, 4001, 4003])) {
+            $this->markTestSkipped('interfaceauthfail,maybeneedotherauthconfiguration - interfacerouteverifynormal');
+            return;
+        }
+
+        // assertresponsestructure
+        $this->assertIsArray($response, 'responseshouldisarrayformat');
+        $this->assertArrayHasKey('data', $response, 'responseshouldcontaindatafield');
+
+        // verifydatastructure
+        $data = $response['data'];
+        $this->assertArrayHasKey('organization_codes', $data, 'datashouldcontainorganization_codesfield');
+        $this->assertArrayHasKey('total', $data, 'datashouldcontaintotalfield');
+        $this->assertIsArray($data['organization_codes'], 'organization_codesshouldisarray');
+        $this->assertIsInt($data['total'], 'totalshouldisinteger');
+        $this->assertEquals(count($data['organization_codes']), $data['total'], 'totalshouldequalorganization_codesquantity');
+    }
+}

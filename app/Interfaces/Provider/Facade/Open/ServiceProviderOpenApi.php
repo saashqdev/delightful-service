@@ -1,0 +1,46 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Interfaces\Provider\Facade\Open;
+
+use App\Application\Provider\Service\AdminProviderAppService;
+use App\Domain\Provider\Entity\ValueObject\Category;
+use App\ErrorCode\ServiceProviderErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Interfaces\Authorization\Web\DelightfulUserAuthorization;
+use App\Interfaces\Provider\Facade\AbstractApi;
+use Delightful\ApiResponse\Annotation\ApiResponse;
+use Hyperf\Di\Annotation\Inject;
+use Hyperf\HttpServer\Contract\RequestInterface;
+
+#[ApiResponse('low_code')]
+class ServiceProviderOpenApi extends AbstractApi
+{
+    #[Inject]
+    protected AdminProviderAppService $adminProviderAppService;
+
+    /**
+     * according tocategorygetservicequotientcommonuselogic.
+     * @param RequestInterface $request requestobject
+     * @return array servicequotientcolumntable
+     */
+    public function getProvidersByCategory(RequestInterface $request): array
+    {
+        /** @var DelightfulUserAuthorization $authenticatable */
+        $authenticatable = $this->getAuthorization();
+        $category = $request->input('category', 'llm');
+        $serviceProviderCategory = Category::tryFrom($category);
+        if (! $serviceProviderCategory) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidModelType);
+        }
+
+        return $this->adminProviderAppService->getOrganizationProvidersModelsByCategory(
+            $authenticatable->getOrganizationCode(),
+            $serviceProviderCategory
+        );
+    }
+}

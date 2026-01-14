@@ -1,0 +1,174 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Application\Permission\Service;
+
+use App\Application\Kernel\AbstractKernelAppService;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Service\DelightfulDepartmentDomainService;
+use App\Domain\Contact\Service\DelightfulDepartmentUserDomainService;
+use App\Domain\Contact\Service\DelightfulUserDomainService;
+use App\Domain\Permission\Entity\OrganizationAdminEntity;
+use App\Domain\Permission\Service\OrganizationAdminDomainService;
+use App\Infrastructure\Core\ValueObject\Page;
+use Exception;
+
+class OrganizationAdminAppService extends AbstractKernelAppService
+{
+    public function __construct(
+        private readonly OrganizationAdminDomainService $organizationAdminDomainService,
+        private readonly DelightfulUserDomainService $userDomainService,
+        private readonly DelightfulDepartmentUserDomainService $departmentUserDomainService,
+        private readonly DelightfulDepartmentDomainService $departmentDomainService
+    ) {
+    }
+
+    /**
+     * queryorganizationadministratorlist.
+     * @return array{total: int, list: array}
+     */
+    public function queries(DataIsolation $dataIsolation, Page $page, ?array $filters = null): array
+    {
+        $result = $this->organizationAdminDomainService->queries($dataIsolation, $page, $filters);
+
+        // getuserinfo
+        $organizationAdmins = $result['list'];
+        $enrichedList = [];
+
+        foreach ($organizationAdmins as $organizationAdmin) {
+            $enrichedData = $this->enrichOrganizationAdminWithUserInfo($dataIsolation, $organizationAdmin);
+            $enrichedList[] = $enrichedData;
+        }
+
+        return [
+            'total' => $result['total'],
+            'list' => $enrichedList,
+        ];
+    }
+
+    /**
+     * getorganizationadministratordetail.
+     */
+    public function show(DataIsolation $dataIsolation, int $id): array
+    {
+        $organizationAdmin = $this->organizationAdminDomainService->show($dataIsolation, $id);
+        return $this->enrichOrganizationAdminWithUserInfo($dataIsolation, $organizationAdmin);
+    }
+
+    /**
+     * according touserIDgetorganizationadministrator.
+     */
+    public function getByUserId(DataIsolation $dataIsolation, string $userId): ?OrganizationAdminEntity
+    {
+        return $this->organizationAdminDomainService->getByUserId($dataIsolation, $userId);
+    }
+
+    /**
+     * grantuserorganizationadministratorpermission.
+     */
+    public function grant(DataIsolation $dataIsolation, string $userId, string $grantorUserId, ?string $remarks = null): OrganizationAdminEntity
+    {
+        return $this->organizationAdminDomainService->grant($dataIsolation, $userId, $grantorUserId, $remarks);
+    }
+
+    /**
+     * deleteorganizationadministrator.
+     */
+    public function destroy(DataIsolation $dataIsolation, int $id): void
+    {
+        $organizationAdmin = $this->organizationAdminDomainService->show($dataIsolation, $id);
+        $this->organizationAdminDomainService->destroy($dataIsolation, $organizationAdmin);
+    }
+
+    /**
+     * transferletorganizationcreatepersonbodyshare.
+     */
+    public function transferOwnership(DataIsolation $dataIsolation, string $newOwnerUserId, string $currentOwnerUserId): void
+    {
+        $this->organizationAdminDomainService->transferOrganizationCreator(
+            $dataIsolation,
+            $currentOwnerUserId,
+            $newOwnerUserId,
+            $currentOwnerUserId // operationauthortheniscurrentcreateperson
+        );
+    }
+
+    /**
+     * richorganizationadministratoractualbodyuserinfo.
+     */
+    private function enrichOrganizationAdminWithUserInfo(DataIsolation $dataIsolation, OrganizationAdminEntity $organizationAdmin): array
+    {
+        // getuserbasicinfo
+        $userInfo = $this->getUserInfo($organizationAdmin->getUserId());
+
+        // getauthorizationpersoninfo
+        $grantorInfo = [];
+        if ($organizationAdmin->getGrantorUserId()) {
+            $grantorInfo = $this->getUserInfo($organizationAdmin->getGrantorUserId());
+        }
+
+        // getdepartmentinfo
+        $departmentInfo = $this->getDepartmentInfo($dataIsolation, $organizationAdmin->getUserId());
+
+        return [
+            'organization_admin' => $organizationAdmin,
+            'user_info' => $userInfo,
+            'grantor_info' => $grantorInfo,
+            'department_info' => $departmentInfo,
+        ];
+    }
+
+    /**
+     * getuserinfo.
+     */
+    private function getUserInfo(string $userId): array
+    {
+        $user = $this->userDomainService->getUserById($userId);
+        if (! $user) {
+            return [];
+        }
+
+        return [
+            'user_id' => $user->getUserId(),
+            'nickname' => $user->getNickname(),
+            'avatar_url' => $user->getAvatarUrl(),
+        ];
+    }
+
+    /**
+     * getuserdepartmentinfo.
+     */
+    private function getDepartmentInfo(DataIsolation $dataIsolation, string $userId): array
+    {
+        try {
+            $departmentUsers = $this->departmentUserDomainService->getDepartmentUsersByUserIds(
+                [$userId],
+                $dataIsolation
+            );
+
+            if (empty($departmentUsers)) {
+                return [];
+            }
+
+            $departmentUser = $departmentUsers[0];
+
+            // getdepartmentdetailedinfo
+            $department = $this->departmentDomainService->getDepartmentById(
+                $dataIsolation,
+                $departmentUser->getDepartmentId()
+            );
+
+            return [
+                'name' => $department ? $department->getName() : '',
+                'job_title' => $departmentUser->getJobTitle(),
+            ];
+        } catch (Exception $e) {
+            // ifgetdepartmentinfofail,returnemptyarray
+            return [];
+        }
+    }
+}

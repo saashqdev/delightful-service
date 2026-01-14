@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Provider\Entity\ValueObject;
+
+enum ProviderType: int
+{
+    case Normal = 0;
+    case Official = 1;
+    case Custom = 2;
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::Normal => 'normal',
+            self::Official => 'official',
+            self::Custom => 'customize',
+        };
+    }
+
+    public function isCustom(): bool
+    {
+        return $this === self::Custom;
+    }
+}

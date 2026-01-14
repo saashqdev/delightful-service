@@ -1,0 +1,41 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Interfaces\Authentication\Facade;
+
+use App\Application\Authentication\Service\LoginAppService;
+use App\Application\Chat\Service\DelightfulUserContactAppService;
+use App\Interfaces\Authentication\DTO\CheckLoginRequest;
+use App\Interfaces\Authentication\DTO\CheckLoginResponse;
+use Hyperf\HttpServer\Contract\RequestInterface;
+
+class LoginApi
+{
+    public function __construct(protected LoginAppService $loginAppService, protected DelightfulUserContactAppService $userAppService)
+    {
+    }
+
+    /**
+     * verifyuserlogin.
+     */
+    public function login(RequestInterface $request): CheckLoginResponse
+    {
+        $stateCode = $request->input('state_code', '');
+        // godrop +number
+        $stateCode = str_replace('+', '', $stateCode);
+        $loginRequest = new CheckLoginRequest();
+        $loginRequest->setEmail($request->input('email', ''));
+        $loginRequest->setPassword($request->input('password'));
+        $loginRequest->setOrganizationCode($request->input('organization_code', ''));
+        $loginRequest->setStateCode($stateCode);
+        $loginRequest->setPhone($request->input('phone', ''));
+        $loginRequest->setRedirect($request->input('redirect', ''));
+        $loginRequest->setType($request->input('type', 'email_password'));
+
+        return $this->loginAppService->login($loginRequest);
+    }
+}

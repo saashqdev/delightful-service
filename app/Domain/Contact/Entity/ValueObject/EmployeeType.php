@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Contact\Entity\ValueObject;
+
+/**
+ * employeetype.
+ */
+enum EmployeeType: int
+{
+    // unknown(such asispersonversionuser)
+    case Unknown = 0;
+
+    // justtypeemployee
+    case Formal = 1;
+
+    // intern
+    case Intern = 2;
+
+    // outsidepackage
+    case Outsourcing = 3;
+
+    // labordispatch
+    case LaborDispatch = 4;
+
+    // consultant
+    case Consultant = 5;
+}

@@ -1,0 +1,14 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Flow\Entity\ValueObject\Permission;
+
+enum TargetType: int
+{
+    case OpenPlatformApp = 1;
+    case ApiKey = 2;
+}

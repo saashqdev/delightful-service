@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+use Hyperf\Database\Migrations\Migration;
+use Hyperf\Database\Schema\Blueprint;
+use Hyperf\Database\Schema\Schema;
+use Hyperf\DbConnection\Db;
+
+class CreateDelightfulApiMsgLogTable extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('delightful_api_msg_logs', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->text('msg')->comment('message');
+            $table->unsignedDecimal('use_amount', 40, 6)->comment('usequota');
+            $table->string('model')->comment('usemodelid');
+            $table->string('organization_code')->comment('organizationid');
+            $table->string('user_id')->comment('userid');
+            $table->timestamp('created_at')->default(Db::raw('CURRENT_TIMESTAMP'))->comment('createtime');
+            $table->timestamp('updated_at')->default(Db::raw('CURRENT_TIMESTAMP'))->comment('modifytime')->nullable();
+            $table->timestamp('deleted_at')->comment('logicdelete')->nullable();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('delightful_api_msg_log');
+    }
+}

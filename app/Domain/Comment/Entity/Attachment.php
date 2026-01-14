@@ -1,0 +1,35 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Comment\Entity;
+
+class Attachment
+{
+    public function __construct(private string $uid, private string $key, private string $name, private int $originType)
+    {
+    }
+
+    public function getUid(): string
+    {
+        return $this->uid;
+    }
+
+    public function getKey(): string
+    {
+        return $this->key;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function getOriginType(): int
+    {
+        return $this->originType;
+    }
+}

@@ -1,0 +1,43 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Application\Flow\ExecuteManager\BuiltIn\ToolSet\AIImage\Tools;
+
+use App\Application\Flow\ExecuteManager\BuiltIn\BuiltInToolSet;
+use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
+use Closure;
+
+class AIImageForTTAPIGTP4oBuiltInTool extends AbstractAIImageBuiltInTool
+{
+    public function getToolSetCode(): string
+    {
+        return BuiltInToolSet::AIImage->getCode();
+    }
+
+    public function getToolSetId(): string
+    {
+        return BuiltInToolSet::AIImage->getCode();
+    }
+
+    public function getName(): string
+    {
+        return 'ai_image_for_gpt4o';
+    }
+
+    public function getDescription(): string
+    {
+        return 'text generationgraphtool-gpt-4omodel';
+    }
+
+    public function getCallback(): ?Closure
+    {
+        return function (ExecutionData $executionData) {
+            $this->executeCallback($executionData, ImageGenerateModelType::TTAPIGPT4o->value);
+        };
+    }
+}

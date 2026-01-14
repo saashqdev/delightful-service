@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request;
+
+class MidjourneyModelRequest extends ImageGenerateRequest
+{
+    // generateimagequantity(nothaveuse,butmustwantwith)
+
+    // ratioexample
+    private string $ratio = '1:1';
+
+    public function getGenerateNum(): int
+    {
+        return $this->generateNum;
+    }
+
+    public function setGenerateNum(int $generateNum): void
+    {
+        $this->generateNum = $generateNum;
+    }
+
+    public function getRatio(): string
+    {
+        return $this->ratio;
+    }
+
+    public function setRatio(string $ratio): void
+    {
+        $this->ratio = $ratio;
+    }
+}

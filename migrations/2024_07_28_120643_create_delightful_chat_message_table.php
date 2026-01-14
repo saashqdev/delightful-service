@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+use Hyperf\Database\Migrations\Migration;
+use Hyperf\Database\Schema\Blueprint;
+use Hyperf\Database\Schema\Schema;
+
+class CreateDelightfulChatMessageTable extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        if (Schema::hasTable('delightful_chat_messages')) {
+            return;
+        }
+        Schema::create('delightful_chat_messages', static function (Blueprint $table) {
+            // according toupsurfacebuildtablelanguagesentence,outbydowncode
+            $table->bigIncrements('id');
+            // hairitemsidebelong toorganization
+            $table->string('sender_id', 64)->comment('hairitemsideid');
+            $table->tinyInteger('sender_type')->comment('hairitemsideusertype,1:user(aialsoberecognizeforisuser);2:application;3:document;4:multi-dimensionaltableformat');
+            $table->string('sender_organization_code', 64)->comment('hairitemsideorganizationencoding,maybeforemptystring')->default('');
+            // receivesidebelong toorganization
+            $table->string('receive_id', 64)->comment('receivesideid,maybeispersoncategory,aiorpersonapplication/document/multi-dimensionaltableformatetc');
+            $table->tinyInteger('receive_type')->comment('receivesidetype,1:user(aialsoberecognizeforisuser);2:application;3:document;4:multi-dimensionaltableformat');
+            $table->string('receive_organization_code', 64)->comment('receivesideorganizationencoding,maybeforemptystring')->default('');
+            // messagerelatedcloseid
+            $table->string('app_message_id', 64)->comment('customerclientgeneratemessageid,useatpreventcustomerclientduplicate');
+            $table->string('delightful_message_id', 64)->comment('serviceclientgenerateuniqueonemessageid,useatmessagewithdraw/edit');
+            # ## messagestructure
+            // messageprioritylevel,byatsystemstablepropertymanage
+            $table->tinyInteger('priority')->default(0)->comment('messageprioritylevel,0~255,0mostlow,255mosthigh');
+            $table->string('message_type', 32)->comment('messagetype:text/tableemotion/file/markdownetc');
+            $table->text('content')->comment('messagedetail');
+            $table->timestamp('send_time')->comment('messagesendtime');
+            $table->index(['sender_id', 'sender_type', 'sender_organization_code'], 'idx_sender_id_type');
+            $table->index(['receive_id', 'receive_type', 'receive_organization_code'], 'idx_receive_id_type');
+            $table->unique(['delightful_message_id'], 'unq_delightful_message_id');
+            $table->timestamps();
+            $table->comment('messagedetailtable,recordoneitemmessagerootthisinfo');
+            $table->softDeletes();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('delightful_chat_messages');
+    }
+}

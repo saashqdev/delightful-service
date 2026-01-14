@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Chat\Event\Device;
+
+use App\Infrastructure\Core\AbstractEvent;
+
+/**
+ * serviceclienttodevicelinkkeep aliveinvalid.
+ */
+class DeviceDisconnectEvent extends AbstractEvent
+{
+    public function __construct(
+        protected string $sid
+    ) {
+        $this->setSid($sid);
+    }
+
+    public function getSid(): string
+    {
+        return $this->sid;
+    }
+
+    public function setSid(string $sid): void
+    {
+        $this->sid = $sid;
+    }
+}

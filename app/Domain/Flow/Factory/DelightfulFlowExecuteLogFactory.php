@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Flow\Factory;
+
+use App\Domain\Flow\Entity\DelightfulFlowExecuteLogEntity;
+use App\Domain\Flow\Entity\ValueObject\ExecuteLogStatus;
+use App\Domain\Flow\Repository\Persistence\Model\DelightfulFlowExecuteLogModel;
+
+class DelightfulFlowExecuteLogFactory
+{
+    public static function modelToEntity(DelightfulFlowExecuteLogModel $model): DelightfulFlowExecuteLogEntity
+    {
+        $entity = new DelightfulFlowExecuteLogEntity();
+        $entity->setId($model->id);
+        $entity->setExecuteDataId($model->execute_data_id);
+        $entity->setFlowCode($model->flow_code);
+        $entity->setFlowVersionCode($model->flow_version_code);
+        $entity->setConversationId($model->conversation_id);
+        $entity->setStatus(ExecuteLogStatus::from($model->status));
+        $entity->setCreatedAt($model->created_at);
+        $entity->setExtParams($model->ext_params);
+        $entity->setResult($model->result);
+        $entity->setRetryCount($model->retry_count);
+        return $entity;
+    }
+}

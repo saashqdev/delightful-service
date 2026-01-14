@@ -1,0 +1,106 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Flow\Entity\ValueObject\NodeParamsConfig;
+
+use App\ErrorCode\FlowErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Delightful\FlowExprEngine\Component;
+use Delightful\FlowExprEngine\ComponentFactory;
+
+enum DelightfulFlowMessageType: string
+{
+    case None = 'none';
+    case Text = 'text';
+    case Markdown = 'markdown';
+    case Image = 'img';
+    case Video = 'video';
+    case Audio = 'audio';
+    case File = 'file';
+
+    // thisistemporaryo clock,itselfshouldnotwillexistsinthis,profitusecardmessageshapetypecomeimplementonlyto
+    case AIMessage = 'ai_message';
+
+    public function isAttachment(): bool
+    {
+        return in_array($this, [self::Image, self::Video, self::Audio, self::File]);
+    }
+
+    public static function make(string $type): ?DelightfulFlowMessageType
+    {
+        return match (strtolower($type)) {
+            'text' => self::Text,
+            'markdown' => self::Markdown,
+            'image', 'img' => self::Image,
+            'video' => self::Video,
+            'audio' => self::Audio,
+            'file' => self::File,
+            'ai_message' => self::AIMessage,
+            default => null,
+        };
+    }
+
+    /**
+     * @return array{type: DelightfulFlowMessageType, content: null|Component, link: null|Component, link_desc: null|Component}
+     */
+    public static function validateParams(array $params): array
+    {
+        $type = DelightfulFlowMessageType::make($params['message_type'] ?? ($params['type'] ?? ''));
+        if (! $type) {
+            ExceptionBuilder::throw(FlowErrorCode::MessageError, 'flow.node.message.type_error');
+        }
+
+        // alldepartmentparse,fetch on demanduse
+        $contentComponent = ComponentFactory::fastCreate($params['content'] ?? []);
+        $linkComponent = ComponentFactory::fastCreate($params['link'] ?? []);
+        $linkDescComponent = ComponentFactory::fastCreate($params['link_desc'] ?? []);
+
+        switch ($type) {
+            case DelightfulFlowMessageType::Text:
+            case DelightfulFlowMessageType::Markdown:
+                if (! $contentComponent?->isValue()) {
+                    ExceptionBuilder::throw(FlowErrorCode::MessageError, 'flow.component.format_error', ['label' => 'content']);
+                }
+                break;
+            case DelightfulFlowMessageType::Image:
+            case DelightfulFlowMessageType::Video:
+            case DelightfulFlowMessageType::Audio:
+            case DelightfulFlowMessageType::File:
+                if (! $linkComponent?->isValue()) {
+                    ExceptionBuilder::throw(FlowErrorCode::MessageError, 'flow.component.format_error', ['label' => 'link']);
+                }
+                if (! $linkDescComponent?->isValue()) {
+                    ExceptionBuilder::throw(FlowErrorCode::MessageError, 'flow.component.format_error', ['label' => 'link_desc']);
+                }
+                break;
+            case DelightfulFlowMessageType::AIMessage:
+                if (! $contentComponent?->isForm()) {
+                    ExceptionBuilder::throw(FlowErrorCode::MessageError, 'flow.component.format_error', ['label' => 'content']);
+                }
+                break;
+            default:
+                ExceptionBuilder::throw(FlowErrorCode::MessageError, 'flow.node.message.unsupported_message_type');
+        }
+
+        if ($contentComponent && $contentComponent->getStructure()) {
+            $contentComponent->getValue()->getExpressionValue()?->setIsStringTemplate(true);
+        }
+        if ($linkComponent && $linkComponent->getStructure()) {
+            $linkComponent->getValue()->getExpressionValue()?->setIsStringTemplate(true);
+        }
+        if ($linkDescComponent && $linkDescComponent->getStructure()) {
+            $linkDescComponent->getValue()->getExpressionValue()?->setIsStringTemplate(true);
+        }
+
+        return [
+            'type' => $type,
+            'content' => $contentComponent,
+            'link' => $linkComponent,
+            'link_desc' => $linkDescComponent,
+        ];
+    }
+}

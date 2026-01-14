@@ -1,0 +1,25 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Infrastructure\Core\Contract\Flow;
+
+use Hyperf\Odin\Mcp\McpServerConfig;
+
+interface NodeRunnerPluginInterface
+{
+    public function getAppendSystemPrompt(): ?string;
+
+    /**
+     * @return array<BuiltInToolInterface>
+     */
+    public function getTools(): array;
+
+    /**
+     * @return array<string, McpServerConfig>
+     */
+    public function getMcpServerConfigs(): array;
+}

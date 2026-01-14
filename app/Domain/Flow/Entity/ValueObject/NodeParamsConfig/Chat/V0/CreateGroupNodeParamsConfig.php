@@ -1,0 +1,125 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Chat\V0;
+
+use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\NodeParamsConfig;
+use App\ErrorCode\FlowErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Delightful\FlowExprEngine\Component;
+use Delightful\FlowExprEngine\ComponentFactory;
+use Delightful\FlowExprEngine\Structure\StructureType;
+
+class CreateGroupNodeParamsConfig extends NodeParamsConfig
+{
+    private Component $groupName;
+
+    private Component $groupOwner;
+
+    private ?Component $groupMembers = null;
+
+    private int $groupType = 0;
+
+    private bool $includeCurrentUser = true;
+
+    private bool $includeCurrentAssistant = true;
+
+    private ?Component $assistantOpeningSpeech = null;
+
+    public function getGroupName(): Component
+    {
+        return $this->groupName;
+    }
+
+    public function getGroupOwner(): Component
+    {
+        return $this->groupOwner;
+    }
+
+    public function getGroupMembers(): ?Component
+    {
+        return $this->groupMembers;
+    }
+
+    public function getGroupType(): int
+    {
+        return $this->groupType;
+    }
+
+    public function isIncludeCurrentUser(): bool
+    {
+        return $this->includeCurrentUser;
+    }
+
+    public function isIncludeCurrentAssistant(): bool
+    {
+        return $this->includeCurrentAssistant;
+    }
+
+    public function getAssistantOpeningSpeech(): ?Component
+    {
+        return $this->assistantOpeningSpeech;
+    }
+
+    public function validate(): array
+    {
+        $params = $this->node->getParams();
+
+        $groupName = ComponentFactory::fastCreate($params['group_name'] ?? []);
+        if (! $groupName?->isValue()) {
+            ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.component.format_error', ['label' => 'group_name']);
+        }
+        $this->groupName = $groupName;
+
+        $groupOwner = ComponentFactory::fastCreate($params['group_owner'] ?? []);
+        if (! $groupOwner?->isValue()) {
+            ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.component.format_error', ['label' => 'group_owner']);
+        }
+        $this->groupOwner = $groupOwner;
+
+        $groupMembers = ComponentFactory::fastCreate($params['group_members'] ?? []);
+        if ($groupMembers && ! $groupMembers->isValue()) {
+            ExceptionBuilder::throw(FlowErrorCode::FlowNodeValidateFailed, 'flow.component.format_error', ['label' => 'group_members']);
+        }
+        $this->groupMembers = $groupMembers;
+
+        $this->groupType = (int) ($params['group_type'] ?? 0);
+        $this->includeCurrentUser = (bool) ($params['include_current_user'] ?? true);
+        $this->includeCurrentAssistant = (bool) ($params['include_current_assistant'] ?? true);
+        $this->assistantOpeningSpeech = ComponentFactory::fastCreate($params['assistant_opening_speech'] ?? []);
+
+        return [
+            'group_name' => $this->groupName->toArray(),
+            'group_owner' => $this->groupOwner->toArray(),
+            'group_members' => $this->groupMembers?->toArray(),
+            'group_type' => $this->groupType,
+            'include_current_user' => $this->includeCurrentUser,
+            'include_current_assistant' => $this->includeCurrentAssistant,
+            'assistant' => $this->assistantOpeningSpeech?->toArray(),
+        ];
+    }
+
+    public function generateTemplate(): void
+    {
+        $this->node->setParams([
+            // groupname
+            'group_name' => ComponentFactory::generateTemplate(StructureType::Value)?->toArray(),
+            // group owner
+            'group_owner' => ComponentFactory::generateTemplate(StructureType::Value)?->toArray(),
+            // groupmember
+            'group_members' => ComponentFactory::generateTemplate(StructureType::Value)?->toArray(),
+            // grouptype,thislocationtoat \App\Domain\Group\Entity\ValueObject\GroupTypeEnum
+            'group_type' => 0,
+            // containwhenfrontuser
+            'include_current_user' => $this->includeCurrentUser,
+            // containwhenfrontassistant
+            'include_current_assistant' => $this->includeCurrentAssistant,
+            // assistantopenfield
+            'assistant_opening_speech' => ComponentFactory::generateTemplate(StructureType::Value)?->toArray(),
+        ]);
+    }
+}

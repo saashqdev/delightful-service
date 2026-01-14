@@ -1,0 +1,53 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+use Hyperf\Database\Migrations\Migration;
+use Hyperf\Database\Schema\Blueprint;
+use Hyperf\Database\Schema\Schema;
+
+return new class extends Migration {
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('delightful_bot_versions', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('flow_code')->comment('workflowcode');
+            $table->string('flow_version')->comment('workflowversion');
+            $table->json('instruct')->comment('interactioninstruction');
+            $table->bigInteger('root_id')->comment('rootid');
+            $table->string('robot_name')->comment('assistant name');
+            $table->string('robot_avatar')->comment('assistant avatar');
+            $table->string('robot_description')->comment('assistantdescription');
+
+            $table->string('version_description', 255)->default('')->comment('description');
+            $table->string('version_number')->nullable()->comment('version number');
+            $table->integer('release_scope')->nullable()->comment('publishrange.1:publishtoenterpriseinsidedepartment 2:publishtoapplicationmarket');
+
+            $table->integer('approval_status')->default(3)->nullable(false)->comment('approvalstatus');
+            $table->integer('review_status')->default(0)->nullable(false)->comment('reviewstatus');
+            $table->integer('enterprise_release_status')->default(0)->nullable(false)->comment('publishtoenterpriseinsidedepartmentstatus');
+            $table->integer('app_market_status')->default(0)->nullable(false)->comment('publishtoapplicationmarketstatus');
+
+            $table->string('organization_code')->comment('organizationencoding');
+
+            $table->string('created_uid')->default('')->comment('publishperson');
+            $table->timestamp('created_at')->nullable()->comment('creation time');
+            $table->string('updated_uid')->default('')->comment('updatepersonuserID');
+            $table->timestamp('updated_at')->nullable()->comment('update time');
+            $table->timestamp('deleted_at')->nullable()->comment('deletion time');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('delightful_bot_version');
+    }
+};

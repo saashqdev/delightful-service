@@ -1,0 +1,604 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Interfaces\Chat\Facade;
+
+use App\Application\Agent\Service\DelightfulAgentAppService;
+use App\Application\Chat\Service\DelightfulChatGroupAppService;
+use App\Application\Chat\Service\DelightfulChatMessageAppService;
+use App\Application\Chat\Service\DelightfulControlMessageAppService;
+use App\Application\Chat\Service\DelightfulConversationAppService;
+use App\Domain\Chat\DTO\ChatCompletionsDTO;
+use App\Domain\Chat\DTO\ConversationListQueryDTO;
+use App\Domain\Chat\DTO\Message\ControlMessage\InstructMessage;
+use App\Domain\Chat\DTO\MessagesQueryDTO;
+use App\Domain\Chat\Entity\DelightfulChatFileEntity;
+use App\Domain\Chat\Entity\DelightfulMessageEntity;
+use App\Domain\Chat\Entity\ValueObject\ConversationType;
+use App\Domain\Chat\Entity\ValueObject\FileType;
+use App\Domain\Chat\Entity\ValueObject\MessageType\ControlMessageType;
+use App\Domain\Group\Entity\DelightfulGroupEntity;
+use App\Domain\Group\Entity\ValueObject\GroupStatusEnum;
+use App\Domain\Group\Entity\ValueObject\GroupTypeEnum;
+use App\ErrorCode\AgentErrorCode;
+use App\ErrorCode\ChatErrorCode;
+use App\Infrastructure\Core\Constants\Order;
+use App\Infrastructure\Core\Exception\BusinessException;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Interfaces\Chat\Assembler\ConversationAssembler;
+use App\Interfaces\Chat\Assembler\PageListAssembler;
+use Carbon\Carbon;
+use Delightful\ApiResponse\Annotation\ApiResponse;
+use Hyperf\Codec\Json;
+use Hyperf\Contract\StdoutLoggerInterface;
+use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\Redis\Redis;
+use Hyperf\Validation\Contract\ValidatorFactoryInterface;
+use Hyperf\Validation\Rule;
+use Throwable;
+
+#[ApiResponse('low_code')]
+class DelightfulChatHttpApi extends AbstractApi
+{
+    public function __construct(
+        private readonly ValidatorFactoryInterface $validatorFactory,
+        private readonly StdoutLoggerInterface $logger,
+        private readonly DelightfulChatMessageAppService $delightfulChatMessageAppService,
+        private readonly DelightfulConversationAppService $delightfulConversationAppService,
+        private readonly DelightfulChatGroupAppService $chatGroupAppService,
+        protected readonly DelightfulAgentAppService $delightfulAgentAppService,
+        protected readonly DelightfulControlMessageAppService $delightfulControlMessageAppService,
+        private readonly Redis $redis,
+    ) {
+    }
+
+    /**
+     * pulluserreceiveitemmessage.
+     * @throws Throwable
+     */
+    public function pullByPageToken(RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'page_token' => 'string', // private chatthisgroundmostbig seq_id
+        ];
+        $params = $this->checkParams($params, $rules);
+        $this->logger->info('pullMessage:' . Json::encode($params));
+        $authorization = $this->getAuthorization();
+        return $this->delightfulChatMessageAppService->pullByPageToken($authorization, $params);
+    }
+
+    public function pullByAppMessageId(RequestInterface $request, string $appMessageId): array
+    {
+        $params = $request->all();
+        $rules = [
+            'page_token' => 'string', // private chatthisgroundmostbig seq_id
+        ];
+        $params = $this->checkParams($params, $rules);
+        $this->logger->info('pullMessageByAppMessageId:' . $appMessageId);
+        $authorization = $this->getAuthorization();
+        return $this->delightfulChatMessageAppService->pullByAppMessageId($authorization, $appMessageId, $params['page_token'] ?? '');
+    }
+
+    /**
+     * pullusermostnearonesegmenttimereceiveitemmessage.
+     * @throws Throwable
+     */
+    public function pullRecentMessage(RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'page_token' => 'string',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $messagesQueryDTO = new MessagesQueryDTO();
+        $messagesQueryDTO->setLimit(500);
+        $messagesQueryDTO->setOrder(Order::Desc);
+        $messagesQueryDTO->setPageToken($params['page_token'] ?? '');
+        $authorization = $this->getAuthorization();
+        return $this->delightfulChatMessageAppService->pullRecentMessage($authorization, $messagesQueryDTO);
+    }
+
+    /**
+     * @throws Throwable
+     */
+    public function conversationQueries(RequestInterface $request): array
+    {
+        $authorization = $this->getAuthorization();
+        $params = $request->all();
+        $rules = [
+            'ids' => 'array|nullable',
+            'status' => 'int|nullable',
+            'limit' => 'int|nullable',
+            'page_token' => 'string',
+            'is_not_disturb' => 'int|nullable',
+            'is_top' => 'int|nullable',
+            'is_mark' => 'int|nullable',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $dto = new ConversationListQueryDTO(
+            [
+                'ids' => $params['ids'] ?? [],
+                'limit' => $params['limit'] ?? 100,
+                'page_token' => $params['page_token'] ?? '',
+                'status' => isset($params['status']) ? (int) $params['status'] : null,
+                'is_not_disturb' => isset($params['is_not_disturb']) ? (int) $params['is_not_disturb'] : null,
+                'is_top' => isset($params['is_top']) ? (int) $params['is_top'] : null,
+                'is_mark' => isset($params['is_mark']) ? (int) $params['is_mark'] : null,
+            ]
+        );
+        return $this->delightfulChatMessageAppService->getConversations($authorization, $dto)->toArray();
+    }
+
+    /**
+     * @throws Throwable
+     */
+    public function getTopicList(string $conversationId, RequestInterface $request): array
+    {
+        $authorization = $this->getAuthorization();
+        $topicIds = (array) $request->input('topic_ids', []);
+        return $this->delightfulChatMessageAppService->getTopicsByConversationId($authorization, $conversationId, $topicIds);
+    }
+
+    /**
+     * sessionwindowscrollloadmessage.
+     */
+    public function messageQueries(RequestInterface $request, string $conversationId): array
+    {
+        $params = $request->all();
+        $rules = [
+            'topic_id' => 'string|nullable',
+            'time_start' => 'string|nullable',
+            'time_end' => 'string|nullable',
+            'page_token' => 'string',
+            'limit' => 'int',
+            'order' => 'string',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $timeStart = ! empty($params['time_start']) ? new Carbon($params['time_start']) : null;
+        $timeEnd = ! empty($params['time_end']) ? new Carbon($params['time_end']) : null;
+        $order = ! empty($params['order']) ? Order::from($params['order']) : Order::Asc;
+        $conversationMessagesQueryDTO = (new MessagesQueryDTO())
+            ->setConversationId($conversationId)
+            ->setTopicId($params['topic_id'] ?? '')
+            ->setTimeStart($timeStart)
+            ->setTimeEnd($timeEnd)
+            ->setPageToken($params['page_token'] ?? '')
+            ->setLimit($params['limit'] ?? 100)
+            ->setOrder($order);
+        $authorization = $this->getAuthorization();
+        return $this->delightfulChatMessageAppService->getMessagesByConversationId($authorization, $conversationId, $conversationMessagesQueryDTO);
+    }
+
+    /**
+     * (frontclientperformancehaveissuetemporarysolution)bysession id minutegroupgetseveralitemmostnewmessage.
+     */
+    public function conversationsMessagesGroupQueries(RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'conversation_ids' => 'array|required',
+            'limit' => 'int|nullable',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $limit = min($params['limit'] ?? 100, 100);
+        $conversationsMessageQueryDTO = (new MessagesQueryDTO())
+            ->setConversationIds($params['conversation_ids'])
+            ->setLimit($limit)
+            ->setOrder(Order::Desc);
+        $authorization = $this->getAuthorization();
+        return $this->delightfulChatMessageAppService->getConversationsMessagesGroupById($authorization, $conversationsMessageQueryDTO);
+    }
+
+    /**
+     * intelligencecanaccording totopicidgettopicname.
+     */
+    public function intelligenceGetTopicName(string $conversationId, string $topicId): array
+    {
+        try {
+            $authorization = $this->getAuthorization();
+            $topicName = $this->delightfulChatMessageAppService->intelligenceRenameTopicName($authorization, $topicId, $conversationId);
+            return [
+                'conversation_id' => $conversationId,
+                'id' => $topicId,
+                'name' => $topicName,
+            ];
+        } catch (Throwable $e) {
+            return [
+                'conversation_id' => $conversationId,
+                'id' => $topicId,
+                'name' => '',
+            ];
+        }
+    }
+
+    /**
+     * createchatgroup.
+     */
+    public function createChatGroup(RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'group_name' => 'string',
+            'group_avatar' => 'string',
+            'group_type' => ['integer', Rule::in([1, 2])],
+            'user_ids' => 'array',
+            'department_ids' => 'array',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $authorization = $this->getAuthorization();
+        $delightfulGroupDTO = new DelightfulGroupEntity();
+        $delightfulGroupDTO->setGroupAvatar($params['group_avatar']);
+        $delightfulGroupDTO->setGroupName($params['group_name']);
+        $delightfulGroupDTO->setGroupType(GroupTypeEnum::from($params['group_type']));
+        $delightfulGroupDTO->setGroupStatus(GroupStatusEnum::Normal);
+        // personmemberanddepartmentnotcanmeanwhileforempty
+        if (empty($params['user_ids']) && empty($params['department_ids'])) {
+            ExceptionBuilder::throw(ChatErrorCode::GROUP_USER_SELECT_ERROR);
+        }
+        return $this->chatGroupAppService->createChatGroup($params['user_ids'], $params['department_ids'], $authorization, $delightfulGroupDTO);
+    }
+
+    /**
+     * batchquantitypullpersonentergroup.
+     */
+    public function groupAddUsers(string $id, RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'user_ids' => 'array',
+            'department_ids' => 'array',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $authorization = $this->getAuthorization();
+        $delightfulGroupDTO = new DelightfulGroupEntity();
+        $delightfulGroupDTO->setId($id);
+        // personmemberanddepartmentnotcanmeanwhileforempty
+        if (empty($params['user_ids']) && empty($params['department_ids'])) {
+            ExceptionBuilder::throw(ChatErrorCode::GROUP_USER_SELECT_ERROR);
+        }
+        return $this->chatGroupAppService->groupAddUsers($params['user_ids'], $params['department_ids'], $authorization, $delightfulGroupDTO);
+    }
+
+    public function leaveGroupConversation(string $id): array
+    {
+        $authorization = $this->getAuthorization();
+        $delightfulGroupDTO = new DelightfulGroupEntity();
+        $delightfulGroupDTO->setId($id);
+        return $this->chatGroupAppService->leaveGroupConversation(
+            $authorization,
+            $delightfulGroupDTO,
+            [$authorization->getId()],
+            ControlMessageType::GroupUsersRemove
+        );
+    }
+
+    public function groupKickUsers(string $id, RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'user_ids' => 'required|array',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $authorization = $this->getAuthorization();
+        $delightfulGroupDTO = new DelightfulGroupEntity();
+        $delightfulGroupDTO->setId($id);
+        return $this->chatGroupAppService->groupKickUsers(
+            $authorization,
+            $delightfulGroupDTO,
+            $params['user_ids'],
+            ControlMessageType::GroupUsersRemove
+        );
+    }
+
+    /**
+     * dissolvegroup chat.
+     */
+    public function groupDelete(string $id): array
+    {
+        $authorization = $this->getAuthorization();
+        $delightfulGroupDTO = new DelightfulGroupEntity();
+        $delightfulGroupDTO->setId($id);
+        return $this->chatGroupAppService->deleteGroup($authorization, $delightfulGroupDTO);
+    }
+
+    /**
+     * batchquantitygetgroupinfo(name,announcementetc).
+     */
+    public function getDelightfulGroupList(RequestInterface $request): array
+    {
+        $groupIds = (array) $request->input('group_ids', '');
+        $pageToken = (string) $request->input('page_token', '');
+        if (empty($groupIds)) {
+            $list = [];
+        } else {
+            $authorization = $this->getAuthorization();
+            $list = $this->chatGroupAppService->getGroupsInfo($groupIds, $authorization);
+        }
+        return PageListAssembler::pageByMysql($list);
+    }
+
+    public function GroupUpdateInfo(string $id, RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'group_name' => 'string|nullable',
+            'group_avatar' => 'string|nullable',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $authorization = $this->getAuthorization();
+        $delightfulGroupDTO = new DelightfulGroupEntity();
+        $delightfulGroupDTO->setId($id);
+        $delightfulGroupDTO->setGroupName($params['group_name'] ?? null);
+        $delightfulGroupDTO->setGroupAvatar($params['group_avatar'] ?? null);
+        // name and avatar notcanmeanwhileforempty
+        if (empty($delightfulGroupDTO->getGroupName()) && empty($delightfulGroupDTO->getGroupAvatar())) {
+            ExceptionBuilder::throw(ChatErrorCode::INPUT_PARAM_ERROR);
+        }
+        return $this->chatGroupAppService->GroupUpdateInfo($authorization, $delightfulGroupDTO);
+    }
+
+    /**
+     * getgroupmemberlist.
+     */
+    public function getGroupUserList(string $id, RequestInterface $request): array
+    {
+        $pageToken = (string) $request->query('page_token', '');
+        $authorization = $this->getAuthorization();
+        $users = $this->chatGroupAppService->getGroupUserList($id, $pageToken, $authorization);
+        return PageListAssembler::pageByMysql($users);
+    }
+
+    /**
+     * user ingrouplist.
+     */
+    public function getUserGroupList(RequestInterface $request): array
+    {
+        $pageToken = (string) $request->input('page_token', '');
+        $pageSize = 50;
+        $authorization = $this->getAuthorization();
+        return $this->chatGroupAppService->getUserGroupList($pageToken, $authorization, $pageSize)->toArray();
+    }
+
+    public function getMessageReceiveList(string $messageId): array
+    {
+        $authorization = $this->getAuthorization();
+        return $this->delightfulChatMessageAppService->getMessageReceiveList($messageId, $authorization);
+    }
+
+    public function groupTransferOwner(string $id, RequestInterface $request)
+    {
+        $params = $request->all();
+        $rules = [
+            'owner_user_id' => 'required|string',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $authorization = $this->getAuthorization();
+        $groupDTO = new DelightfulGroupEntity();
+        $groupDTO->setId($id);
+        $groupDTO->setGroupOwner($params['owner_user_id']);
+        return $this->chatGroupAppService->groupTransferOwner($groupDTO, $authorization);
+    }
+
+    public function fileUpload(RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            '*.file_extension' => 'required|string',
+            '*.file_key' => 'required|string',
+            '*.file_size' => 'required|int',
+            '*.file_name' => 'required|string',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $authorization = $this->getAuthorization();
+        $fileUploadDTOs = [];
+        foreach ($params as $file) {
+            $fileType = FileType::getTypeFromFileExtension($file['file_extension']);
+            $fileUploadDTO = new DelightfulChatFileEntity();
+            $fileUploadDTO->setFileKey($file['file_key']);
+            $fileUploadDTO->setFileSize($file['file_size']);
+            $fileUploadDTO->setFileExtension($file['file_extension']);
+            $fileUploadDTO->setFileName($file['file_name']);
+            $fileUploadDTO->setFileType($fileType);
+            $fileUploadDTOs[] = $fileUploadDTO;
+        }
+        return $this->delightfulChatMessageAppService->fileUpload($fileUploadDTOs, $authorization);
+    }
+
+    public function getFileDownUrl(RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            '*.file_id' => 'required|string',
+            '*.message_id' => 'required|string',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $authorization = $this->getAuthorization();
+        $fileDTOs = [];
+        foreach ($params as $param) {
+            $fileId = $param['file_id'];
+            $messageId = $param['message_id'];
+            $fileQueryDTO = new DelightfulChatFileEntity();
+            $fileQueryDTO->setFileId($fileId);
+            $fileQueryDTO->setMessageId($messageId);
+            $fileDTOs[] = $fileQueryDTO;
+        }
+        return $this->delightfulChatMessageAppService->getFileDownUrl($fileDTOs, $authorization);
+    }
+
+    /**
+     * Chat completion in conversation window.
+     */
+    public function conversationChatCompletions(string $conversationId, RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'topic_id' => 'string',
+            'message' => 'required|string',
+            'history' => 'array', // Support external history messages if not in conversation
+        ];
+        $params = $this->checkParams($params, $rules);
+
+        return $this->handleChatCompletions($params, $conversationId, $params['topic_id'] ?? '');
+    }
+
+    /**
+     * Chat completion with optional conversation_id and topic_id.
+     */
+    public function typingCompletions(RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'conversation_id' => 'string',
+            'topic_id' => 'string',
+            'message' => 'required|string',
+            'history' => 'array|nullable', // Support external history messages
+        ];
+        $params = $this->checkParams($params, $rules);
+        $conversationId = $params['conversation_id'] ?? null;
+        $topicId = $params['topic_id'] ?? null;
+        return $this->handleChatCompletions($params, $conversationId, $topicId);
+    }
+
+    /**
+     * sessionsaveinteractionfingercommand.
+     */
+    public function saveInstruct(string $conversationId, RequestInterface $request)
+    {
+        $instructs = $request->input('instructs');
+        $receiveId = $request->input('receive_id');
+        $authenticatable = $this->getAuthorization();
+        $delightfulAgentVersionEntity = $this->delightfulAgentAppService->getDetailByUserId($receiveId);
+        if ($delightfulAgentVersionEntity === null) {
+            ExceptionBuilder::throw(AgentErrorCode::VALIDATE_FAILED, 'agent.agent_does_not_exist');
+        }
+        $agentInstruct = $delightfulAgentVersionEntity->getInstructs();
+        $instructResult = $this->delightfulConversationAppService->saveInstruct($authenticatable, $instructs, $conversationId, $agentInstruct);
+
+        $delightfulMessageEntity = new DelightfulMessageEntity();
+        $delightfulMessageEntity->setSenderOrganizationCode($authenticatable->getOrganizationCode());
+        $delightfulMessageEntity->setSenderType(ConversationType::Ai);
+        $delightfulMessageEntity->setMessageType(ControlMessageType::AgentInstruct);
+        $delightfulMessageEntity->setAppMessageId(IdGenerator::getUniqueId32());
+        $delightfulMessageEntity->setSenderId($authenticatable->getId());
+        $instructMessage = new InstructMessage();
+        $instructMessage->setInstruct($instructResult);
+        $delightfulMessageEntity->setContent($instructMessage);
+        $this->delightfulControlMessageAppService->clientOperateInstructMessage($delightfulMessageEntity, $conversationId);
+        return $instructResult;
+    }
+
+    /**
+     * @param null|string $method havetimefieldnothaveregionminutedegree,needaddupmethodname
+     */
+    protected function checkParams(array $params, array $rules, ?string $method = null): array
+    {
+        $validator = $this->validatorFactory->make($params, $rules);
+        if ($validator->fails()) {
+            $errMsg = $validator->errors()->first();
+            $method && $errMsg = $method . ': ' . $errMsg;
+            throw new BusinessException($errMsg);
+        }
+        $validator->validated();
+        return $params;
+    }
+
+    /**
+     * processchatsupplementallcommonlogic.
+     */
+    protected function handleChatCompletions(array $params, ?string $conversationId, ?string $topicId): array
+    {
+        $authorization = $this->getAuthorization();
+        $message = $params['message'];
+
+        try {
+            // Generate cache key
+            $cacheKey = $this->generateCacheKey($conversationId, $topicId, $message, $authorization->getId());
+
+            // Check if result exists in cache
+            $cachedResult = $this->redis->get($cacheKey);
+            if ($cachedResult) {
+                return ConversationAssembler::getConversationChatCompletions($params, $cachedResult);
+            }
+
+            // Create ChatCompletionsDTO
+            $chatCompletionsDTO = new ChatCompletionsDTO();
+            $chatCompletionsDTO->setConversationId($conversationId);
+            $chatCompletionsDTO->setMessage($message);
+            $chatCompletionsDTO->setHistory($params['history'] ?? []);
+            $chatCompletionsDTO->setTopicId($topicId ?? '');
+
+            // Fetch history messages
+            $historyMessages = $this->getHistoryMessages($authorization, $conversationId, $topicId, $params['history'] ?? []);
+
+            // Delegate to app layer for LLM call and fallback, get string content directly
+            $completionContent = $this->delightfulConversationAppService->conversationChatCompletions($historyMessages ?: [], $chatCompletionsDTO, $authorization);
+
+            // Process completion content
+            $completionContent = $this->processCompletionContent($completionContent);
+
+            // Cache result if completionContent is not empty
+            if (! empty($completionContent)) {
+                $this->redis->setex($cacheKey, 5, $completionContent);
+            }
+
+            return ConversationAssembler::getConversationChatCompletions($params, $completionContent);
+        } catch (Throwable $exception) {
+            $this->logger->error(sprintf(
+                'message: %s, file: %s, line: %s, trace: %s',
+                $exception->getMessage(),
+                $exception->getFile(),
+                $exception->getLine(),
+                $exception->getTraceAsString()
+            ));
+            // Don't throw error
+            return ConversationAssembler::getConversationChatCompletions($params, '');
+        }
+    }
+
+    /**
+     * generatecachekey.
+     */
+    private function generateCacheKey(?string $conversationId, ?string $topicId, string $message, string $userId): string
+    {
+        return 'chat_completion:' . md5($conversationId . $topicId . $message . $userId);
+    }
+
+    /**
+     * gethistorymessage.
+     * @param mixed $authorization
+     */
+    private function getHistoryMessages($authorization, ?string $conversationId, ?string $topicId, ?array $externalHistory): array
+    {
+        if (empty($conversationId)) {
+            return $externalHistory;
+        }
+
+        return $this->delightfulChatMessageAppService->getConversationChatCompletionsHistory(
+            $authorization,
+            $conversationId,
+            20,
+            $topicId ?? ''
+        );
+    }
+
+    /**
+     * processsupplementallcontent.
+     */
+    private function processCompletionContent(string $completionContent): string
+    {
+        // Split content by \n and keep only the left part
+        $completionContent = explode("\n", $completionContent, 2)[0];
+
+        // Remove emojis
+        $regex = '/[\x{1F300}-\x{1F77F}\x{1F780}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B50}\x{2B55}\x{23E9}-\x{23EF}\x{23F0}\x{23F3}\x{24C2}\x{25AA}\x{25AB}\x{25B6}\x{25C0}\x{25FB}-\x{25FE}\x{00A9}\x{00AE}\x{203C}\x{2049}\x{2122}\x{2139}\x{2194}-\x{2199}\x{21A9}-\x{21AA}\x{231A}-\x{231B}\x{2328}\x{23CF}\x{23F1}-\x{23F2}\x{23F8}-\x{23FA}\x{2934}-\x{2935}\x{2B05}-\x{2B07}\x{2B1B}\x{2B1C}\x{3030}\x{303D}\x{3297}\x{3299}]/u';
+
+        // Remove trailing \n and special characters like spaces
+        return rtrim(preg_replace($regex, '', $completionContent));
+    }
+}

@@ -1,0 +1,209 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\File\Entity;
+
+class DefaultFileEntity extends AbstractEntity
+{
+    public int $id;
+
+    public string $businessType;
+
+    public int $fileType;
+
+    public string $key;
+
+    public int $fileSize;
+
+    public string $organization;
+
+    public string $fileExtension;
+
+    public string $userId;
+
+    public ?string $createdAt;
+
+    public ?string $updatedAt;
+
+    public ?string $deletedAt;
+
+    public function getId(): int
+    {
+        return $this->id;
+    }
+
+    /**
+     * setID.
+     */
+    public function setId(int $id): self
+    {
+        $this->id = $id;
+        return $this;
+    }
+
+    /**
+     * setbusinesstype.
+     */
+    public function setBusinessType(string $businessType): self
+    {
+        $this->businessType = $businessType;
+        return $this;
+    }
+
+    /**
+     * getfiletype.
+     */
+    public function getFileType(): int
+    {
+        return $this->fileType;
+    }
+
+    /**
+     * setfiletype.
+     */
+    public function setFileType(int $fileType): self
+    {
+        $this->fileType = $fileType;
+        return $this;
+    }
+
+    /**
+     * getfilekey.
+     */
+    public function getKey(): string
+    {
+        return $this->key;
+    }
+
+    /**
+     * setfilekey.
+     */
+    public function setKey(string $key): self
+    {
+        $this->key = $key;
+        return $this;
+    }
+
+    /**
+     * getfilesize.
+     */
+    public function getFileSize(): int
+    {
+        return $this->fileSize;
+    }
+
+    /**
+     * setfilesize.
+     */
+    public function setFileSize(int $fileSize): self
+    {
+        $this->fileSize = $fileSize;
+        return $this;
+    }
+
+    /**
+     * getorganizationencoding
+     */
+    public function getOrganization(): string
+    {
+        return $this->organization;
+    }
+
+    /**
+     * setorganizationencoding
+     */
+    public function setOrganization(string $organization): self
+    {
+        $this->organization = $organization;
+        return $this;
+    }
+
+    /**
+     * getfilebacksuffix
+     */
+    public function getFileExtension(): string
+    {
+        return $this->fileExtension;
+    }
+
+    /**
+     * setfilebacksuffix
+     */
+    public function setFileExtension(string $fileExtension): self
+    {
+        $this->fileExtension = $fileExtension;
+        return $this;
+    }
+
+    /**
+     * getuploadpersonID.
+     */
+    public function getUserId(): string
+    {
+        return $this->userId;
+    }
+
+    /**
+     * setuploadpersonID.
+     */
+    public function setUserId(string $userId): self
+    {
+        $this->userId = $userId;
+        return $this;
+    }
+
+    /**
+     * getcreatetime.
+     */
+    public function getCreatedAt(): ?string
+    {
+        return $this->createdAt;
+    }
+
+    /**
+     * setcreatetime.
+     */
+    public function setCreatedAt(?string $createdAt): self
+    {
+        $this->createdAt = $createdAt;
+        return $this;
+    }
+
+    /**
+     * getupdatetime.
+     */
+    public function getUpdatedAt(): ?string
+    {
+        return $this->updatedAt;
+    }
+
+    /**
+     * setupdatetime.
+     */
+    public function setUpdatedAt(?string $updatedAt): self
+    {
+        $this->updatedAt = $updatedAt;
+        return $this;
+    }
+
+    /**
+     * getdeletetime.
+     */
+    public function getDeletedAt(): ?string
+    {
+        return $this->deletedAt;
+    }
+
+    /**
+     * setdeletetime.
+     */
+    public function setDeletedAt(?string $deletedAt): self
+    {
+        $this->deletedAt = $deletedAt;
+        return $this;
+    }
+}

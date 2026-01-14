@@ -1,0 +1,19 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Authentication\Entity\ValueObject;
+
+enum Code: string
+{
+    case ApiKeyProvider = 'AKP';
+    case ApiKeySK = 'api-sk';
+
+    public function gen(): string
+    {
+        return $this->value . '-' . str_replace('.', '-', uniqid('', true));
+    }
+}

@@ -1,0 +1,370 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\KnowledgeBase\Entity\ValueObject;
+
+use App\Infrastructure\Core\AbstractValueObject;
+use InvalidArgumentException;
+
+/**
+ * knowledge baseretrieveconfigurationvalueobject
+ *
+ * containretrievestrategy,retrievemethod,reloadsortconfigurationetcparameter
+ */
+class RetrieveConfig extends AbstractValueObject
+{
+    /**
+     * currentconfigurationversion.
+     *
+     * useatconfigurationstructurechangemoreo clockcompatiblepropertyprocess
+     */
+    public const int CURRENT_VERSION = 1;
+
+    /**
+     * retrievemethod.
+     *
+     * optionalvalue:
+     * - semantic_search: semanticretrieve
+     * - full_text_search: alltextretrieve
+     * - hybrid_search: hybridretrieve
+     * - graph_search: graphretrieve
+     *
+     * @see RetrievalMethod
+     */
+    protected string $searchMethod = RetrievalMethod::SEMANTIC_SEARCH;
+
+    /**
+     * returnmostbigresultquantity.
+     */
+    protected int $topK = 3;
+
+    /**
+     * minutethreshold countvalue
+     *
+     * onlyreturnsimilardegreeminutecountgreater thanthethresholdvalueresult
+     */
+    protected float $scoreThreshold = 0.5;
+
+    /**
+     * whetherenableminutethreshold countvaluefilter.
+     */
+    protected bool $scoreThresholdEnabled = false;
+
+    /**
+     * reloadsortmodetype.
+     *
+     * optionalvalue:
+     * - reranking_model: usereloadsortmodel
+     * - weighted_score: useaddpermissionminutecount
+     *
+     * @see RerankMode
+     */
+    protected string $rerankingMode = RerankMode::WEIGHTED_SCORE;
+
+    /**
+     * whetherenablereloadsort.
+     */
+    protected bool $rerankingEnable = false;
+
+    /**
+     * weightconfiguration.
+     *
+     * containtoquantityretrieveandkeywordretrieveweightconfiguration
+     */
+    protected array $weights = [
+        'vector_setting' => [
+            'vector_weight' => 1.0,
+            'embedding_model_name' => '',
+            'embedding_provider_name' => '',
+        ],
+        'keyword_setting' => [
+            'keyword_weight' => 0.0,
+        ],
+        'graph_setting' => [
+            'relation_weight' => 0.5,
+            'max_depth' => 2,
+            'include_properties' => true,
+            'timeout' => 5.0,
+            'retry_count' => 3,
+        ],
+    ];
+
+    /**
+     * reloadsortmodelconfiguration.
+     *
+     * containreloadsortmodelrelatedcloseconfigurationparameter
+     */
+    protected array $rerankingModel = [
+        'reranking_model_name' => '',
+        'reranking_provider_name' => '',
+    ];
+
+    /**
+     * configurationversion.
+     *
+     * useatconfigurationstructurechangemoreo clockcompatiblepropertyprocess
+     */
+    private int $version = self::CURRENT_VERSION;
+
+    /**
+     * getconfigurationversion.
+     */
+    public function getVersion(): int
+    {
+        return $this->version;
+    }
+
+    /**
+     * setconfigurationversion.
+     */
+    public function setVersion(int $version): self
+    {
+        $this->version = $version;
+        return $this;
+    }
+
+    /**
+     * getretrievemethod.
+     */
+    public function getSearchMethod(): string
+    {
+        return $this->searchMethod;
+    }
+
+    /**
+     * setretrievemethod.
+     */
+    public function setSearchMethod(string $searchMethod): self
+    {
+        if (! RetrievalMethod::isValid($searchMethod)) {
+            throw new InvalidArgumentException("Invalid search method: {$searchMethod}");
+        }
+        $this->searchMethod = $searchMethod;
+        return $this;
+    }
+
+    /**
+     * getreturnmostbigresultquantity.
+     */
+    public function getTopK(): int
+    {
+        return $this->topK;
+    }
+
+    /**
+     * setreturnmostbigresultquantity.
+     */
+    public function setTopK(int $topK): self
+    {
+        if ($topK < 1) {
+            throw new InvalidArgumentException('TopK must be greater than 0');
+        }
+        $this->topK = $topK;
+        return $this;
+    }
+
+    /**
+     * getminutethreshold countvalue
+     */
+    public function getScoreThreshold(): float
+    {
+        return $this->scoreThreshold;
+    }
+
+    /**
+     * setminutethreshold countvalue
+     */
+    public function setScoreThreshold(float $scoreThreshold): self
+    {
+        if ($scoreThreshold < 0 || $scoreThreshold > 1) {
+            throw new InvalidArgumentException('Score threshold must be between 0 and 1');
+        }
+        $this->scoreThreshold = $scoreThreshold;
+        return $this;
+    }
+
+    /**
+     * whetherenableminutethreshold countvaluefilter.
+     */
+    public function isScoreThresholdEnabled(): bool
+    {
+        return $this->scoreThresholdEnabled;
+    }
+
+    /**
+     * setwhetherenableminutethreshold countvaluefilter.
+     */
+    public function setScoreThresholdEnabled(bool $scoreThresholdEnabled): self
+    {
+        $this->scoreThresholdEnabled = $scoreThresholdEnabled;
+        return $this;
+    }
+
+    /**
+     * getreloadsortmodetype.
+     */
+    public function getRerankingMode(): string
+    {
+        return $this->rerankingMode;
+    }
+
+    /**
+     * setreloadsortmodetype.
+     */
+    public function setRerankingMode(string $rerankingMode): self
+    {
+        if (! RerankMode::isValid($rerankingMode)) {
+            throw new InvalidArgumentException("Invalid reranking mode: {$rerankingMode}");
+        }
+        $this->rerankingMode = $rerankingMode;
+        return $this;
+    }
+
+    /**
+     * whetherenablereloadsort.
+     */
+    public function isRerankingEnable(): bool
+    {
+        return $this->rerankingEnable;
+    }
+
+    /**
+     * setwhetherenablereloadsort.
+     */
+    public function setRerankingEnable(bool $rerankingEnable): self
+    {
+        $this->rerankingEnable = $rerankingEnable;
+        return $this;
+    }
+
+    /**
+     * getweightconfiguration.
+     */
+    public function getWeights(): array
+    {
+        return $this->weights;
+    }
+
+    /**
+     * setweightconfiguration.
+     */
+    public function setWeights(array $weights): self
+    {
+        // verifyweightconfiguration
+        if (! isset($weights['vector_setting']) || ! isset($weights['keyword_setting']) || ! isset($weights['graph_setting'])) {
+            throw new InvalidArgumentException('Weights must contain vector_setting, keyword_setting and graph_setting');
+        }
+
+        if (! isset($weights['vector_setting']['vector_weight'])
+            || ! isset($weights['keyword_setting']['keyword_weight'])) {
+            throw new InvalidArgumentException('Vector setting must contain vector_weight and keyword setting must contain keyword_weight');
+        }
+
+        // verify graph_setting mustcontainrequiredwantfield
+        if (! isset($weights['graph_setting']['relation_weight'])
+            || ! isset($weights['graph_setting']['max_depth'])
+            || ! isset($weights['graph_setting']['include_properties'])) {
+            throw new InvalidArgumentException('Graph setting must contain relation_weight, max_depth and include_properties');
+        }
+
+        $vectorWeight = $weights['vector_setting']['vector_weight'];
+        $keywordWeight = $weights['keyword_setting']['keyword_weight'];
+
+        if ($vectorWeight < 0 || $vectorWeight > 1
+            || $keywordWeight < 0 || $keywordWeight > 1) {
+            throw new InvalidArgumentException('Weights must be between 0 and 1');
+        }
+
+        $this->weights = $weights;
+        return $this;
+    }
+
+    /**
+     * getreloadsortmodelconfiguration.
+     */
+    public function getRerankingModel(): array
+    {
+        return $this->rerankingModel;
+    }
+
+    /**
+     * setreloadsortmodelconfiguration.
+     */
+    public function setRerankingModel(array $rerankingModel): self
+    {
+        // mergedefaultconfiguration
+        $this->rerankingModel = array_merge($this->rerankingModel, $rerankingModel);
+        return $this;
+    }
+
+    /**
+     * createdefaultconfiguration.
+     */
+    public static function createDefault(): self
+    {
+        return new self();
+    }
+
+    /**
+     * fromarraycreateconfiguration.
+     */
+    public static function fromArray(array $config): self
+    {
+        $retrieveConfig = new self();
+        if (isset($config['search_method'])) {
+            $retrieveConfig->setSearchMethod($config['search_method']);
+        }
+
+        if (isset($config['top_k'])) {
+            $retrieveConfig->setTopK($config['top_k']);
+        }
+
+        if (isset($config['score_threshold'])) {
+            $retrieveConfig->setScoreThreshold($config['score_threshold']);
+        }
+
+        if (isset($config['score_threshold_enabled'])) {
+            $retrieveConfig->setScoreThresholdEnabled($config['score_threshold_enabled']);
+        }
+
+        if (isset($config['reranking_mode'])) {
+            $retrieveConfig->setRerankingMode($config['reranking_mode']);
+        }
+
+        if (isset($config['reranking_enable'])) {
+            $retrieveConfig->setRerankingEnable($config['reranking_enable']);
+        }
+
+        if (isset($config['weights'])) {
+            $retrieveConfig->setWeights($config['weights']);
+        }
+
+        if (isset($config['reranking_model'])) {
+            $retrieveConfig->setRerankingModel($config['reranking_model']);
+        }
+
+        return $retrieveConfig;
+    }
+
+    /**
+     * convertforarray.
+     */
+    public function toArray(): array
+    {
+        return [
+            'version' => $this->version,
+            'search_method' => $this->searchMethod,
+            'top_k' => $this->topK,
+            'score_threshold' => $this->scoreThreshold,
+            'score_threshold_enabled' => $this->scoreThresholdEnabled,
+            'reranking_mode' => $this->rerankingMode,
+            'reranking_enable' => $this->rerankingEnable,
+            'weights' => $this->weights,
+            'reranking_model' => $this->rerankingModel,
+        ];
+    }
+}

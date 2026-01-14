@@ -1,0 +1,76 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Infrastructure\Util\JWT;
+
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
+use Hyperf\Stringable\Str;
+
+class SimpleJWT
+{
+    private string $tokenPrefix = 'Bearer';
+
+    private string $key;
+
+    public function __construct(string $key)
+    {
+        $this->key = $key;
+    }
+
+    /**
+     * issuehairtoken.
+     */
+    public function issueToken(array $data, int $expires = 7200): array
+    {
+        $token = [
+            'iss' => app_name(), // signhairperson optional
+            'aud' => '', // receivetheJWToneside,optional
+            'exp' => time() + $expires, // expiretime
+            'data' => $data, // customizedata
+        ];
+        return [
+            'access_token' => JWT::encode($token, $this->key, 'HS256'),
+            'token_type' => $this->tokenPrefix,
+            'expires_in' => $expires,
+        ];
+    }
+
+    /**
+     * verifytoken.
+     */
+    public function authenticate(string $authorization = ''): array
+    {
+        return $this->certification($this->getClientInfo($authorization));
+    }
+
+    private function certification($token = '')
+    {
+        $res = $this->verification($token);
+        return $res['data'] ?? [];
+    }
+
+    private function verification(string $jwt)
+    {
+        if (empty($jwt)) {
+            return [];
+        }
+        $decoded = (array) JWT::decode($jwt, new Key($this->key, 'HS256'));
+        return json_decode(json_encode($decoded), true);
+    }
+
+    private function getClientInfo(string $authorization = ''): string
+    {
+        $token = $authorization;
+        if (Str::startsWith($authorization, $this->tokenPrefix)) {
+            if (preg_match('/' . $this->tokenPrefix . '[\+\s]*(.*)\b/i', $authorization, $matches)) {
+                $token = $matches[1] ?? '';
+            }
+        }
+        return $token;
+    }
+}

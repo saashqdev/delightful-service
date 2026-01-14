@@ -1,0 +1,45 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+use Hyperf\Database\Migrations\Migration;
+use Hyperf\Database\Schema\Blueprint;
+use Hyperf\Database\Schema\Schema;
+
+return new class extends Migration {
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('delightful_flow_cache', function (Blueprint $table) {
+            $table->id();
+            $table->string('cache_hash', 32)->unique()->comment('cachekeyMD5hashvalue(cache_prefix+cache_key)');
+            $table->string('cache_prefix')->comment('cachefrontsuffix');
+            $table->string('cache_key')->comment('cachekeyname');
+            $table->string('scope_tag', 10)->comment('asusedomainidentifier');
+            $table->longText('cache_value')->comment('cachevaluecontent');
+            $table->unsignedInteger('ttl_seconds')->default(7200)->comment('TTLsecondcount(0representpermanentcache)');
+            $table->timestamp('expires_at')->comment('expiretimestamp');
+            $table->string('organization_code', 64)->comment('organizationisolation');
+            $table->string('created_uid', 64)->default('')->comment('createperson');
+            $table->string('updated_uid', 64)->default('')->comment('updateperson');
+            $table->timestamps();
+
+            // index - useMD5hashvalueasformainqueryindex
+            $table->unique('cache_hash', 'uk_cache_hash');
+            $table->index('expires_at', 'idx_expires_at');
+            $table->index('organization_code', 'idx_organization_code');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('delightful_flow_cache');
+    }
+};

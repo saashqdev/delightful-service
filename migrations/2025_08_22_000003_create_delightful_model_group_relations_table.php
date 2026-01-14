@@ -1,0 +1,33 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+use Hyperf\Database\Migrations\Migration;
+use Hyperf\Database\Schema\Blueprint;
+use Hyperf\Database\Schema\Schema;
+
+return new class extends Migration {
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        if (Schema::hasTable('delightful_mode_group_relations')) {
+            return;
+        }
+
+        Schema::create('delightful_mode_group_relations', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->bigInteger('mode_id')->unsigned()->default(0)->comment('modeID');
+            $table->bigInteger('group_id')->unsigned()->default(0)->comment('minutegroupID');
+            $table->string('model_id')->default('')->comment('modelID');
+            $table->bigInteger('provider_model_id')->unsigned()->default(0)->comment('modeltablemainkey id');
+            $table->integer('sort')->default(0)->comment('sortweight');
+            $table->string('organization_code', 32)->default('')->comment('organizationcode');
+            $table->timestamps();
+            $table->softDeletes();
+        });
+    }
+};

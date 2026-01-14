@@ -1,0 +1,41 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\BeAgent\Mention\Tool;
+
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\BeAgent\Mention\AbstractMention;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\BeAgent\Mention\MentionType;
+
+final class ToolMention extends AbstractMention
+{
+    public function getMentionTextStruct(): string
+    {
+        /** @var ToolData $data */
+        $data = $this->getAttrs()?->getData();
+        if (! $data instanceof ToolData) {
+            return '';
+        }
+
+        return $data->getName() ?? '';
+    }
+
+    public function getMentionJsonStruct(): array
+    {
+        /** @var ToolData $data */
+        $data = $this->getAttrs()?->getData();
+        if (! $data instanceof ToolData) {
+            return [];
+        }
+
+        return [
+            'type' => MentionType::TOOL->value,
+            'id' => $data->getId(),
+            'name' => $data->getName(),
+            'icon' => $data->getIcon(),
+        ];
+    }
+}

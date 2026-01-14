@@ -1,0 +1,152 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Contact\Entity;
+
+use App\Domain\Contact\Entity\ValueObject\PlatformType;
+use App\Domain\Contact\Entity\ValueObject\ThirdPlatformIdMappingType;
+
+/**
+ * thethird-partyplatformandMagedepartment,user,organizationencoding,nullbetweenencodingetcmappingclosesystemrecord.
+ */
+class DelightfulThirdPlatformIdMappingEntity extends AbstractEntity
+{
+    protected string $id;
+
+    protected string $originId;
+
+    protected string $newId;
+
+    protected string $delightfulOrganizationCode;
+
+    // delightful_environment_id
+    protected int $delightfulEnvironmentId = 0;
+
+    protected PlatformType $thirdPlatformType;
+
+    protected ThirdPlatformIdMappingType $mappingType;
+
+    protected string $createdAt;
+
+    protected string $updatedAt;
+
+    protected ?string $deletedAt;
+
+    public function __construct(array $data = [])
+    {
+        parent::__construct($data);
+    }
+
+    public function getDelightfulEnvironmentId(): int
+    {
+        return $this->delightfulEnvironmentId;
+    }
+
+    public function setDelightfulEnvironmentId(int $delightfulEnvironmentId): void
+    {
+        $this->delightfulEnvironmentId = $delightfulEnvironmentId;
+    }
+
+    public function getId(): string
+    {
+        return $this->id;
+    }
+
+    public function setId(int|string $id): void
+    {
+        if (is_int($id)) {
+            $id = (string) $id;
+        }
+        $this->id = $id;
+    }
+
+    public function getOriginId(): string
+    {
+        return $this->originId;
+    }
+
+    public function setOriginId(string $originId): void
+    {
+        $this->originId = $originId;
+    }
+
+    public function getNewId(): string
+    {
+        return $this->newId;
+    }
+
+    public function setNewId(string $newId): void
+    {
+        $this->newId = $newId;
+    }
+
+    public function getMappingType(): ThirdPlatformIdMappingType
+    {
+        return $this->mappingType;
+    }
+
+    public function setMappingType(string|ThirdPlatformIdMappingType $mappingType): void
+    {
+        if (is_string($mappingType)) {
+            $mappingType = ThirdPlatformIdMappingType::from($mappingType);
+        }
+        $this->mappingType = $mappingType;
+    }
+
+    public function getThirdPlatformType(): PlatformType
+    {
+        return $this->thirdPlatformType;
+    }
+
+    public function setThirdPlatformType(PlatformType|string $thirdPlatformType): void
+    {
+        if (is_string($thirdPlatformType)) {
+            $thirdPlatformType = PlatformType::from($thirdPlatformType);
+        }
+        $this->thirdPlatformType = $thirdPlatformType;
+    }
+
+    public function getDelightfulOrganizationCode(): string
+    {
+        return $this->delightfulOrganizationCode;
+    }
+
+    public function setDelightfulOrganizationCode(string $delightfulOrganizationCode): void
+    {
+        $this->delightfulOrganizationCode = $delightfulOrganizationCode;
+    }
+
+    public function getCreatedAt(): string
+    {
+        return $this->createdAt;
+    }
+
+    public function setCreatedAt(string $createdAt): void
+    {
+        $this->createdAt = $createdAt;
+    }
+
+    public function getUpdatedAt(): string
+    {
+        return $this->updatedAt;
+    }
+
+    public function setUpdatedAt(string $updatedAt): void
+    {
+        $this->updatedAt = $updatedAt;
+    }
+
+    public function getDeletedAt(): ?string
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(?string $deletedAt): void
+    {
+        $this->deletedAt = $deletedAt;
+    }
+}

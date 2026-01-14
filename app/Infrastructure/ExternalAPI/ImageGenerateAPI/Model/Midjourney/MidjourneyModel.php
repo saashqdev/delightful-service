@@ -1,0 +1,444 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney;
+
+use App\ErrorCode\ImageGenerateErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
+use Exception;
+
+class MidjourneyModel extends AbstractImageGenerate
+{
+    // mostbigretrycount
+    protected const MAX_RETRIES = 20;
+
+    // retrybetweenseparator(second)
+    protected const RETRY_INTERVAL = 10;
+
+    protected MidjourneyAPI $api;
+
+    public function __construct(array $serviceProviderConfig)
+    {
+        $this->api = new MidjourneyAPI($serviceProviderConfig['api_key']);
+    }
+
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        return $this->generateImageRawInternal($imageGenerateRequest);
+    }
+
+    public function setAK(string $ak)
+    {
+        // TODO: Implement setAK() method.
+    }
+
+    public function setSK(string $sk)
+    {
+        // TODO: Implement setSK() method.
+    }
+
+    public function setApiKey(string $apiKey)
+    {
+        $this->api->setApiKey($apiKey);
+    }
+
+    public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        $rawData = $this->generateImageRaw($imageGenerateRequest);
+
+        return $this->processMidjourneyRawDataWithWatermark($rawData, $imageGenerateRequest);
+    }
+
+    /**
+     * generategraphlikeandreturnOpenAIformatresponse - Midjourneyversion.
+     */
+    public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
+    {
+        // 1. in advancecreateresponseobject
+        $response = new OpenAIFormatResponse([
+            'created' => time(),
+            'provider' => $this->getProviderName(),
+            'data' => [],
+        ]);
+
+        // 2. parametervalidate
+        if (! $imageGenerateRequest instanceof MidjourneyModelRequest) {
+            $this->logger->error('Midjourney OpenAIformatgenerategraph:invalidrequesttype', ['class' => get_class($imageGenerateRequest)]);
+            return $response; // returnnulldataresponse
+        }
+
+        // 3. synchandle(Midjourneycollectuseroundinquiry mechanism)
+        try {
+            $result = $this->generateImageRawInternal($imageGenerateRequest);
+            $this->validateMidjourneyResponse($result);
+
+            // success:settingimagedatatoresponseobject
+            $this->addImageDataToResponse($response, $result, $imageGenerateRequest);
+        } catch (Exception $e) {
+            // fail:settingerrorinfotoresponseobject
+            $response->setProviderErrorCode($e->getCode());
+            $response->setProviderErrorMessage($e->getMessage());
+
+            $this->logger->error('Midjourney OpenAIformatgenerategraph:requestfail', [
+                'error_code' => $e->getCode(),
+                'error_message' => $e->getMessage(),
+            ]);
+        }
+
+        // 4. recordfinalresult
+        $this->logger->info('Midjourney OpenAIformatgenerategraph:handlecomplete', [
+            'successimagecount' => count($response->getData()),
+            'whetherhaveerror' => $response->hasError(),
+            'errorcode' => $response->getProviderErrorCode(),
+            'errormessage' => $response->getProviderErrorMessage(),
+        ]);
+
+        return $response;
+    }
+
+    public function getProviderName(): string
+    {
+        return 'midjourney';
+    }
+
+    protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    {
+        $rawResult = $this->generateImageRawInternal($imageGenerateRequest);
+
+        // fromnativeresultmiddleextractimageURL
+        if (! empty($rawResult['data']['images']) && is_array($rawResult['data']['images'])) {
+            return new ImageGenerateResponse(ImageGenerateType::URL, $rawResult['data']['images']);
+        }
+
+        // ifnothave images array,tryuse cdnImage
+        if (! empty($rawResult['data']['cdnImage'])) {
+            return new ImageGenerateResponse(ImageGenerateType::URL, [$rawResult['data']['cdnImage']]);
+        }
+
+        $this->logger->error('MJtext generationgraph:notgettoimageURL', [
+            'rawResult' => $rawResult,
+        ]);
+        ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA);
+    }
+
+    /**
+     * roundquerytaskresultandreturnnativedata.
+     * @throws Exception
+     */
+    protected function pollTaskResultForRaw(string $jobId): array
+    {
+        $retryCount = 0;
+
+        while ($retryCount < self::MAX_RETRIES) {
+            try {
+                $result = $this->api->getTaskResult($jobId);
+
+                if (! isset($result['status'])) {
+                    $this->logger->error('MJtext generationgraph:roundqueryresponseformaterror', [
+                        'jobId' => $jobId,
+                        'response' => $result,
+                    ]);
+                    ExceptionBuilder::throw(ImageGenerateErrorCode::RESPONSE_FORMAT_ERROR);
+                }
+
+                $this->logger->info('MJtext generationgraph:roundquerystatus', [
+                    'jobId' => $jobId,
+                    'status' => $result['status'],
+                    'retryCount' => $retryCount,
+                ]);
+
+                if ($result['status'] === 'SUCCESS') {
+                    // directlyreturncompletenativedata
+                    return $result;
+                }
+
+                if ($result['status'] === 'FAILED') {
+                    $this->logger->error('MJtext generationgraph:taskexecutefail', [
+                        'jobId' => $jobId,
+                        'message' => $result['message'] ?? 'unknownerror',
+                    ]);
+                    ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+                }
+
+                // ifisotherstatus(like PENDING_QUEUE or ON_QUEUE),continueetcpending
+                ++$retryCount;
+                sleep(self::RETRY_INTERVAL);
+            } catch (Exception $e) {
+                $this->logger->error('MJtext generationgraph:roundquerytaskresultfail', [
+                    'jobId' => $jobId,
+                    'error' => $e->getMessage(),
+                    'retryCount' => $retryCount,
+                ]);
+                ExceptionBuilder::throw(ImageGenerateErrorCode::POLLING_FAILED);
+            }
+        }
+
+        $this->logger->error('MJtext generationgraph:taskexecutetimeout', [
+            'jobId' => $jobId,
+            'maxRetries' => self::MAX_RETRIES,
+            'totalTime' => self::MAX_RETRIES * self::RETRY_INTERVAL,
+        ]);
+        ExceptionBuilder::throw(ImageGenerateErrorCode::TASK_TIMEOUT);
+    }
+
+    protected function submitAsyncTask(string $prompt, string $mode = 'fast'): string
+    {
+        try {
+            $result = $this->api->submitTask($prompt, $mode);
+
+            if (! isset($result['status'])) {
+                $this->logger->error('MJtext generationgraph:responseformaterror', [
+                    'response' => $result,
+                ]);
+                ExceptionBuilder::throw(ImageGenerateErrorCode::RESPONSE_FORMAT_ERROR);
+            }
+
+            if ($result['status'] !== 'SUCCESS') {
+                $this->logger->error('MJtext generationgraph:submitfail', [
+                    'message' => $result['message'] ?? 'unknownerror',
+                ]);
+                ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+            }
+
+            if (empty($result['data']['jobId'])) {
+                $this->logger->error('MJtext generationgraph:missingtaskID', [
+                    'response' => $result,
+                ]);
+                ExceptionBuilder::throw(ImageGenerateErrorCode::MISSING_IMAGE_DATA);
+            }
+
+            $jobId = $result['data']['jobId'];
+            $this->logger->info('MJtext generationgraph:submittasksuccess', [
+                'jobId' => $jobId,
+            ]);
+            return $jobId;
+        } catch (Exception $e) {
+            $this->logger->error('MJtext generationgraph:submittaskexception', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+        }
+    }
+
+    /**
+     * check Prompt whetherlegal.
+     * @throws Exception
+     */
+    protected function checkPrompt(string $prompt): void
+    {
+        try {
+            $result = $this->api->checkPrompt($prompt);
+
+            if (! isset($result['status'])) {
+                $this->logger->error('MJtext generationgraph:Promptvalidationresponseformaterror', [
+                    'response' => $result,
+                ]);
+                ExceptionBuilder::throw(ImageGenerateErrorCode::RESPONSE_FORMAT_ERROR);
+            }
+
+            if ($result['status'] !== 'SUCCESS') {
+                $this->logger->warning('MJtext generationgraph:Promptvalidationfail', [
+                    'message' => $result['message'] ?? 'unknownerror',
+                ]);
+                ExceptionBuilder::throw(ImageGenerateErrorCode::INVALID_PROMPT);
+            }
+
+            $this->logger->info('MJtext generationgraph:Promptvalidationcomplete');
+        } catch (Exception $e) {
+            $this->logger->error('MJtext generationgraph:Promptvalidationrequestfail', [
+                'error' => $e->getMessage(),
+            ]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::PROMPT_CHECK_FAILED);
+        }
+    }
+
+    /**
+     * checkaccountbalance.
+     * @return float balance
+     * @throws Exception
+     */
+    protected function checkBalance(): float
+    {
+        try {
+            $result = $this->api->getAccountInfo();
+
+            if ($result['status'] !== 'SUCCESS') {
+                throw new Exception('checkbalancefail: ' . ($result['message'] ?? 'unknownerror'));
+            }
+
+            return (float) $result['data']['balance'];
+        } catch (Exception $e) {
+            throw new Exception('checkbalancefail: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * getalertmessagefrontsuffix
+     */
+    protected function getAlertPrefix(): string
+    {
+        return 'TT API';
+    }
+
+    /**
+     * generategraphlikecorecorelogic,returnnativeresult.
+     */
+    private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        if (! $imageGenerateRequest instanceof MidjourneyModelRequest) {
+            $this->logger->error('MJtext generationgraph:invalidrequesttype', [
+                'class' => get_class($imageGenerateRequest),
+            ]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+        }
+
+        // build prompt
+        $prompt = $imageGenerateRequest->getPrompt();
+        if ($imageGenerateRequest->getRatio()) {
+            $prompt .= ' --ar ' . $imageGenerateRequest->getRatio();
+        }
+        if ($imageGenerateRequest->getNegativePrompt()) {
+            $prompt .= ' --no ' . $imageGenerateRequest->getNegativePrompt();
+        }
+
+        $prompt .= ' --v 7.0';
+
+        // recordrequeststart
+        $this->logger->info('MJtext generationgraph:startgenerategraph', [
+            'prompt' => $prompt,
+            'ratio' => $imageGenerateRequest->getRatio(),
+            'negativePrompt' => $imageGenerateRequest->getNegativePrompt(),
+            'mode' => $imageGenerateRequest->getModel(),
+        ]);
+
+        try {
+            $this->checkPrompt($prompt);
+
+            $jobId = $this->submitAsyncTask($prompt, $imageGenerateRequest->getModel());
+
+            $rawResult = $this->pollTaskResultForRaw($jobId);
+
+            $this->logger->info('MJtext generationgraph:generateend', [
+                'jobId' => $jobId,
+            ]);
+
+            return $rawResult;
+        } catch (Exception $e) {
+            $this->logger->error('MJtext generationgraph:fail', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * forMidjourneyoriginaldataaddwatermark.
+     */
+    private function processMidjourneyRawDataWithWatermark(array $rawData, ImageGenerateRequest $imageGenerateRequest): array
+    {
+        if (! isset($rawData['data'])) {
+            return $rawData;
+        }
+
+        try {
+            // handle images array
+            if (! empty($rawData['data']['images']) && is_array($rawData['data']['images'])) {
+                foreach ($rawData['data']['images'] as $index => &$imageUrl) {
+                    $imageUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $imageGenerateRequest);
+                }
+                unset($imageUrl);
+            }
+
+            // handlesingle cdnImage
+            if (! empty($rawData['data']['cdnImage'])) {
+                $rawData['data']['cdnImage'] = $this->watermarkProcessor->addWatermarkToUrl($rawData['data']['cdnImage'], $imageGenerateRequest);
+            }
+        } catch (Exception $e) {
+            // watermarkhandlefailo clock,recorderrorbutnotimpactimagereturn
+            $this->logger->error('Midjourneyimagewatermarkhandlefail', [
+                'error' => $e->getMessage(),
+            ]);
+            // returnoriginaldata
+        }
+
+        return $rawData;
+    }
+
+    /**
+     * validateMidjourney APIresponsedataformat(onlycheckimagesfield).
+     */
+    private function validateMidjourneyResponse(array $result): void
+    {
+        if (empty($result['data']) || ! is_array($result['data'])) {
+            throw new Exception('Midjourneyresponsedataformaterror:missingdatafield');
+        }
+
+        if (empty($result['data']['images']) || ! is_array($result['data']['images'])) {
+            throw new Exception('Midjourneyresponsedataformaterror:missingimagesfieldorimagesnotisarray');
+        }
+
+        if (count($result['data']['images']) === 0) {
+            throw new Exception('Midjourneyresponsedataformaterror:imagesarrayfornull');
+        }
+    }
+
+    /**
+     * willMidjourneyimagedataaddtoOpenAIresponseobjectmiddle(onlyhandleimagesfield).
+     */
+    private function addImageDataToResponse(
+        OpenAIFormatResponse $response,
+        array $midjourneyResult,
+        ImageGenerateRequest $imageGenerateRequest
+    ): void {
+        // fromMidjourneyresponsemiddleextractdata.imagesfield
+        if (empty($midjourneyResult['data']['images']) || ! is_array($midjourneyResult['data']['images'])) {
+            return;
+        }
+
+        $currentData = $response->getData();
+        $currentUsage = $response->getUsage() ?? new ImageUsage();
+
+        // onlyhandle images arraymiddleURL
+        foreach ($midjourneyResult['data']['images'] as $imageUrl) {
+            if (! empty($imageUrl)) {
+                // handlewatermark
+                $processedUrl = $imageUrl;
+                try {
+                    $processedUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $imageGenerateRequest);
+                } catch (Exception $e) {
+                    $this->logger->error('Midjourneyaddimagedata:watermarkhandlefail', [
+                        'error' => $e->getMessage(),
+                        'url' => $imageUrl,
+                    ]);
+                    // watermarkhandlefailo clockuseoriginalURL
+                }
+
+                $currentData[] = [
+                    'url' => $processedUrl,
+                ];
+            }
+        }
+
+        // accumulatedusageinfo
+        $imageCount = count($midjourneyResult['data']['images']);
+        $currentUsage->addGeneratedImages($imageCount);
+
+        // updateresponseobject
+        $response->setData($currentData);
+        $response->setUsage($currentUsage);
+    }
+}

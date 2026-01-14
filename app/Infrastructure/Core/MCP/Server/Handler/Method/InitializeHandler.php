@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Infrastructure\Core\MCP\Server\Handler\Method;
+
+use App\Infrastructure\Core\MCP\Capabilities;
+use App\Infrastructure\Core\MCP\Types\Message\MessageInterface;
+
+/**
+ * initializemethodprocessdevice.
+ */
+class InitializeHandler extends AbstractMethodHandler
+{
+    /**
+     * processinitializerequest.
+     */
+    public function handle(MessageInterface $request): ?array
+    {
+        $capabilities = new Capabilities(
+            hasTools: ! $this->getToolManager()->isEmpty(),
+            hasResources: ! $this->getResourceManager()->isEmpty(),
+            hasPrompts: ! $this->getPromptManager()->isEmpty()
+        );
+
+        return [
+            'protocolVersion' => '2025-03-26',
+            'capabilities' => $capabilities->jsonSerialize(),
+            'serverInfo' => [
+                'name' => 'delightful-sse',
+                'version' => '1.0.0',
+            ],
+            'instructions' => '',
+        ];
+    }
+}

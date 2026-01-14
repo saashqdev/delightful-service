@@ -1,0 +1,195 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Provider\Entity;
+
+use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
+use App\Domain\Provider\Entity\ValueObject\Status;
+use App\Infrastructure\Core\AbstractEntity;
+
+/**
+ * AI canimplementationbody.
+ */
+class AiAbilityEntity extends AbstractEntity
+{
+    protected ?int $id = null;
+
+    protected AiAbilityCode $code;
+
+    protected string $organizationCode = '';
+
+    protected array $name = [];
+
+    protected array $description = [];
+
+    protected string $icon;
+
+    protected int $sortOrder;
+
+    protected Status $status;
+
+    protected array $config;
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function setId(null|int|string $id): void
+    {
+        if (is_numeric($id)) {
+            $this->id = (int) $id;
+        } else {
+            $this->id = null;
+        }
+    }
+
+    public function getCode(): AiAbilityCode
+    {
+        return $this->code;
+    }
+
+    public function setCode(null|AiAbilityCode|string $code): void
+    {
+        if ($code === null || $code === '') {
+            $this->code = AiAbilityCode::Ocr;
+        } elseif ($code instanceof AiAbilityCode) {
+            $this->code = $code;
+        } else {
+            $this->code = AiAbilityCode::tryFrom($code) ?? AiAbilityCode::Unknown;
+        }
+    }
+
+    public function getOrganizationCode(): string
+    {
+        return $this->organizationCode;
+    }
+
+    public function setOrganizationCode(string $organizationCode): void
+    {
+        $this->organizationCode = $organizationCode;
+    }
+
+    public function getName(): array
+    {
+        return $this->name;
+    }
+
+    public function setName(array|string $name): void
+    {
+        if (is_string($name)) {
+            // ifisstring,tryparseJSON
+            $decoded = json_decode($name, true);
+            $this->name = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->name = $name;
+        }
+    }
+
+    /**
+     * getwhenfrontlanguagename.
+     */
+    public function getLocalizedName(?string $locale = null): string
+    {
+        $locale = $locale ?? config('translation.locale', 'en_US');
+        return $this->name[$locale] ?? $this->name['en_US'] ?? $this->name['en_US'] ?? '';
+    }
+
+    public function getDescription(): array
+    {
+        return $this->description;
+    }
+
+    public function setDescription(array|string $description): void
+    {
+        if (is_string($description)) {
+            // ifisstring,tryparseJSON
+            $decoded = json_decode($description, true);
+            $this->description = is_array($decoded) ? $decoded : [];
+        } else {
+            $this->description = $description;
+        }
+    }
+
+    /**
+     * getwhenfrontlanguagedescription.
+     */
+    public function getLocalizedDescription(?string $locale = null): string
+    {
+        $locale = $locale ?? config('translation.locale', 'en_US');
+        return $this->description[$locale] ?? $this->description['en_US'] ?? $this->description['en_US'] ?? '';
+    }
+
+    public function getIcon(): string
+    {
+        return $this->icon;
+    }
+
+    public function setIcon(null|int|string $icon): void
+    {
+        if ($icon === null) {
+            $this->icon = '';
+        } else {
+            $this->icon = (string) $icon;
+        }
+    }
+
+    public function getSortOrder(): int
+    {
+        return $this->sortOrder;
+    }
+
+    public function setSortOrder(null|int|string $sortOrder): void
+    {
+        if ($sortOrder === null) {
+            $this->sortOrder = 0;
+        } else {
+            $this->sortOrder = (int) $sortOrder;
+        }
+    }
+
+    public function getStatus(): Status
+    {
+        return $this->status;
+    }
+
+    public function setStatus(null|bool|int|Status|string $status): void
+    {
+        if ($status === null || $status === '') {
+            $this->status = Status::Enabled;
+        } elseif ($status instanceof Status) {
+            $this->status = $status;
+        } elseif (is_bool($status)) {
+            $this->status = $status ? Status::Enabled : Status::Disabled;
+        } else {
+            $this->status = Status::from((int) $status);
+        }
+    }
+
+    public function getConfig(): array
+    {
+        return $this->config;
+    }
+
+    public function setConfig(array|string $config): void
+    {
+        if (is_string($config)) {
+            $configArray = json_decode($config, true) ?: [];
+            $this->config = $configArray;
+        } else {
+            $this->config = $config;
+        }
+    }
+
+    /**
+     * judgecancapabilitywhetherenable.
+     */
+    public function isEnabled(): bool
+    {
+        return $this->status->isEnabled();
+    }
+}

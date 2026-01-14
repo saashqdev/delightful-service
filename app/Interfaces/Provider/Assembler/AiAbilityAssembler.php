@@ -1,0 +1,182 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Interfaces\Provider\Assembler;
+
+use App\Application\Provider\DTO\AiAbilityDetailDTO;
+use App\Application\Provider\DTO\AiAbilityListDTO;
+use App\Domain\Provider\Entity\AiAbilityEntity;
+use App\Infrastructure\Util\Aes\AesUtil;
+use Hyperf\Codec\Json;
+
+use function Hyperf\Config\config;
+
+/**
+ * AIcanpower assembler.
+ */
+class AiAbilityAssembler
+{
+    /**
+     * AIcancapabilityEntityconvertforListDTO.
+     */
+    public static function entityToListDTO(AiAbilityEntity $entity, string $locale = 'en_US'): AiAbilityListDTO
+    {
+        return new AiAbilityListDTO(
+            id: (string) ($entity->getId()),
+            code: $entity->getCode()->value,
+            name: $entity->getLocalizedName($locale),
+            description: $entity->getLocalizedDescription($locale),
+            status: $entity->getStatus()->value,
+        );
+    }
+
+    /**
+     * AIcancapabilityEntityconvertforDetailDTO.
+     */
+    public static function entityToDetailDTO(AiAbilityEntity $entity, string $locale = 'en_US'): AiAbilityDetailDTO
+    {
+        // getoriginalconfiguration
+        $config = $entity->getConfig();
+
+        // recursiondesensitize have api_key field(supportanyembedsetstructure)
+        $maskedConfig = self::maskConfigRecursively($config);
+
+        return new AiAbilityDetailDTO(
+            id: $entity->getId() ?? 0,
+            code: $entity->getCode()->value,
+            name: $entity->getLocalizedName($locale),
+            description: $entity->getLocalizedDescription($locale),
+            icon: $entity->getIcon(),
+            sortOrder: $entity->getSortOrder(),
+            status: $entity->getStatus()->value,
+            config: $maskedConfig,
+        );
+    }
+
+    /**
+     * AIcancapabilityEntitylistconvertforListDTOlist.
+     *
+     * @param array<AiAbilityEntity> $entities
+     * @return array<AiAbilityListDTO>
+     */
+    public static function entitiesToListDTOs(array $entities, string $locale = 'en_US'): array
+    {
+        $dtos = [];
+        foreach ($entities as $entity) {
+            $dtos[] = self::entityToListDTO($entity, $locale);
+        }
+        return $dtos;
+    }
+
+    /**
+     * AIcancapabilitylistDTOtransferarray.
+     *
+     * @param array<AiAbilityListDTO> $dtos
+     */
+    public static function listDTOsToArray(array $dtos): array
+    {
+        $result = [];
+        foreach ($dtos as $dto) {
+            $result[] = $dto->toArray();
+        }
+        return $result;
+    }
+
+    /**
+     * toconfigurationdataconductdecrypt.
+     *
+     * @param string $config encryptconfigurationstring
+     * @param string $salt saltvalue(usuallyisrecordID)
+     * @return array decryptbackconfigurationarray
+     */
+    public static function decodeConfig(string $config, string $salt): array
+    {
+        $decode = AesUtil::decode(self::_getAesKey($salt), $config);
+        if (! $decode) {
+            return [];
+        }
+        return Json::decode($decode);
+    }
+
+    /**
+     * toconfigurationdataconductencoding(JSONencoding + AESencrypt).
+     *
+     * @param array $config configurationarray
+     * @param string $salt saltvalue(usuallyisrecordID)
+     * @return string encryptbackconfigurationstring
+     */
+    public static function encodeConfig(array $config, string $salt): string
+    {
+        $jsonEncoded = Json::encode($config);
+        return AesUtil::encode(self::_getAesKey($salt), $jsonEncoded);
+    }
+
+    /**
+     * recursiondesensitizeconfigurationmiddle have api_key field.
+     *
+     * @param array $config configurationarray
+     * @return array desensitizebackconfigurationarray
+     */
+    private static function maskConfigRecursively(array $config): array
+    {
+        $result = [];
+
+        foreach ($config as $key => $value) {
+            // ifis api_key field,conductdesensitize(front4back4)
+            if ($key === 'api_key' && is_string($value) && ! empty($value)) {
+                $result[$key] = self::maskApiKey($value);
+            }
+            // ifisarray,recursionprocess
+            elseif (is_array($value)) {
+                $result[$key] = self::maskConfigRecursively($value);
+            }
+            // othervaluedirectlyassignvalue
+            else {
+                $result[$key] = $value;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * desensitize API Key.
+     *
+     * @param string $apiKey original API Key
+     * @param int $prefixLength retainfrontseveral digits(default3)
+     * @param int $suffixLength retainbackseveral digits(default3)
+     * @return string desensitizeback API Key
+     */
+    private static function maskApiKey(string $apiKey, int $prefixLength = 4, int $suffixLength = 4): string
+    {
+        $length = mb_strlen($apiKey);
+        $minLength = $prefixLength + $suffixLength;
+
+        // if key tooshort,alldepartmentdesensitize
+        if ($length <= $minLength) {
+            return str_repeat('*', $length);
+        }
+
+        // displayfrontNpositionandbackNposition
+        $prefix = mb_substr($apiKey, 0, $prefixLength);
+        $suffix = mb_substr($apiKey, -$suffixLength);
+        $maskLength = $length - $minLength;
+
+        return $prefix . str_repeat('*', $maskLength) . $suffix;
+    }
+
+    /**
+     * generateAESencryptkey(foundationkey + saltvalue).
+     *
+     * @param string $salt saltvalue
+     * @return string AESkey
+     */
+    private static function _getAesKey(string $salt): string
+    {
+        return config('abilities.ai_ability_aes_key') . $salt;
+    }
+}

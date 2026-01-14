@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+use Hyperf\Database\Migrations\Migration;
+use Hyperf\Database\Schema\Blueprint;
+use Hyperf\Database\Schema\Schema;
+
+return new class extends Migration {
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        // tableexistsinthennotexecute
+        if (Schema::hasTable('delightful_api_premium_endpoint_responses')) {
+            return;
+        }
+
+        Schema::create('delightful_api_premium_endpoint_responses', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            // request_id
+            $table->string('request_id', 128)->nullable()->default(null)->comment('requestid');
+            // endpoint_id
+            $table->string('endpoint_id', 64)->nullable()->default(null)->comment('accesspointid');
+            // requestparameterlength
+            $table->integer('request_length')->nullable()->default(null)->comment('requestparameterlength');
+            // responseconsumetime,unit:millisecondssecond
+            $table->integer('response_time')->nullable()->default(null)->comment('responseconsumetime,unit:millisecondssecond');
+            // response http statuscode
+            $table->integer('http_status_code')->nullable()->default(null)->comment('response http statuscode');
+            // responsebusinessstatuscode
+            $table->integer('business_status_code')->nullable()->default(null)->comment('responsebusinessstatuscode');
+            // whetherrequestsuccess
+            $table->boolean('is_success')->nullable()->default(null)->comment('whetherrequestsuccess');
+            // exceptiontype
+            $table->string('exception_type', 255)->comment('exceptiontype')->nullable();
+            // exceptioninfo
+            $table->text('exception_message')->comment('exceptioninfo')->nullable();
+            $table->datetimes();
+            $table->index(['request_id'], 'request_id_index');
+            // for endpoint_id and created_at addunionindex,useatbytimerangequeryspecificclientpointresponse
+            $table->index(['endpoint_id', 'created_at'], 'endpoint_id_created_at_index');
+            $table->comment('accesspointresponserecordtable');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('delightful_api_premium_endpoint_responses');
+    }
+};

@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\OrganizationEnvironment\Repository\Model;
+
+use Hyperf\DbConnection\Model\Model;
+use Hyperf\Snowflake\Concern\Snowflake;
+
+class DelightfulOrganizationsEnvironmentModel extends Model
+{
+    use Snowflake;
+
+    protected ?string $table = 'delightful_organizations_environment';
+
+    protected array $fillable = [
+        'id',
+        'login_code',
+        'delightful_organization_code',
+        'origin_organization_code',
+        'environment_id',
+        'created_at',
+        'updated_at',
+    ];
+
+    protected array $casts = [
+        'id' => 'string',
+    ];
+}

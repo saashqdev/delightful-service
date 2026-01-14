@@ -1,0 +1,538 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Application\ModelGateway\Mapper;
+
+use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\Provider\Entity\ProviderConfigEntity;
+use App\Domain\Provider\Entity\ProviderEntity;
+use App\Domain\Provider\Entity\ProviderModelEntity;
+use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ModelType;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Service\AdminProviderDomainService;
+use App\Infrastructure\Core\Contract\Model\RerankInterface;
+use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
+use App\Infrastructure\Core\Model\ImageGenerationModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModel;
+use App\Infrastructure\ExternalAPI\DelightfulAIApi\DelightfulAILocalModel;
+use DateTime;
+use Hyperf\Contract\ConfigInterface;
+use Hyperf\Logger\LoggerFactory;
+use Hyperf\Odin\Api\RequestOptions\ApiOptions;
+use Hyperf\Odin\Contract\Model\EmbeddingInterface;
+use Hyperf\Odin\Contract\Model\ModelInterface;
+use Hyperf\Odin\Factory\ModelFactory;
+use Hyperf\Odin\Model\AbstractModel;
+use Hyperf\Odin\Model\ModelOptions;
+use Hyperf\Odin\ModelMapper;
+use InvalidArgumentException;
+use Throwable;
+
+/**
+ * setprojectitselfmultipleset ModelGatewayMapper - finalalldepartmentconvertfor odin model parameterformat.
+ */
+class ModelGatewayMapper extends ModelMapper
+{
+    /**
+     * persistencecustomizedata.
+     * @var array<string, OdinModelAttributes>
+     */
+    protected array $attributes = [];
+
+    /**
+     * @var array<string, RerankInterface>
+     */
+    protected array $rerank = [];
+
+    private ProviderManager $providerManager;
+
+    public function __construct(protected ConfigInterface $config, LoggerFactory $loggerFactory)
+    {
+        $this->providerManager = di(ProviderManager::class);
+        $logger = $loggerFactory->get('ModelGatewayMapper');
+        $this->models['chat'] = [];
+        $this->models['embedding'] = [];
+        parent::__construct($config, $logger);
+
+        $this->loadEnvModels();
+    }
+
+    public function exists(BaseDataIsolation $dataIsolation, string $model): bool
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        if (isset($this->models['chat'][$model]) || isset($this->models['embedding'][$model])) {
+            return true;
+        }
+        return (bool) $this->getByAdmin($dataIsolation, $model);
+    }
+
+    public function getOfficialChatModelProxy(string $model): DelightfulAILocalModel
+    {
+        $dataIsolation = ModelGatewayDataIsolation::create('', '');
+        $dataIsolation->setCurrentOrganizationCode($dataIsolation->getOfficialOrganizationCode());
+        return $this->getChatModelProxy($dataIsolation, $model, true);
+    }
+
+    /**
+     * insidedepartmentuse chat o clock,onesetisusethemethod.
+     * willfromauto replaceforthisgroundproxymodel.
+     */
+    public function getChatModelProxy(BaseDataIsolation $dataIsolation, string $model, bool $useOfficialAccessToken = false): DelightfulAILocalModel
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $odinModel = $this->getOrganizationChatModel($dataIsolation, $model);
+        if ($odinModel instanceof OdinModel) {
+            $odinModel = $odinModel->getModel();
+        }
+        if (! $odinModel instanceof AbstractModel) {
+            throw new InvalidArgumentException(sprintf('Model %s is not a valid Odin model.', $model));
+        }
+        return $this->createProxy($dataIsolation, $model, $odinModel->getModelOptions(), $odinModel->getApiRequestOptions(), $useOfficialAccessToken);
+    }
+
+    /**
+     * insidedepartmentuse embedding o clock,onesetisusethemethod.
+     * willfromauto replaceforthisgroundproxymodel.
+     */
+    public function getEmbeddingModelProxy(BaseDataIsolation $dataIsolation, string $model): DelightfulAILocalModel
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        /** @var AbstractModel $odinModel */
+        $odinModel = $this->getOrganizationEmbeddingModel($dataIsolation, $model);
+        if ($odinModel instanceof OdinModel) {
+            $odinModel = $odinModel->getModel();
+        }
+        if (! $odinModel instanceof AbstractModel) {
+            throw new InvalidArgumentException(sprintf('Model %s is not a valid Odin model.', $model));
+        }
+        // convertforproxy
+        return $this->createProxy($dataIsolation, $model, $odinModel->getModelOptions(), $odinModel->getApiRequestOptions());
+    }
+
+    /**
+     * themethodgettoonesetistrueactualcallmodel.
+     * only ModelGateway domainuse.
+     * @param string $model expectedismanagebackplatform model_id,passdegreelevelsegmentacceptpass in model_version
+     */
+    public function getOrganizationChatModel(BaseDataIsolation $dataIsolation, string $model): ModelInterface|OdinModel
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $odinModel = $this->getByAdmin($dataIsolation, $model, ModelType::LLM);
+        if ($odinModel) {
+            return $odinModel;
+        }
+        return $this->getChatModel($model);
+    }
+
+    /**
+     * themethodgettoonesetistrueactualcallmodel.
+     * only ModelGateway domainuse.
+     * @param string $model modelname expectedismanagebackplatform model_id,passdegreelevelsegmentaccept model_version
+     */
+    public function getOrganizationEmbeddingModel(BaseDataIsolation $dataIsolation, string $model): EmbeddingInterface|OdinModel
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $odinModel = $this->getByAdmin($dataIsolation, $model, ModelType::EMBEDDING);
+        if ($odinModel) {
+            return $odinModel;
+        }
+        return $this->getEmbeddingModel($model);
+    }
+
+    public function getOrganizationImageModel(BaseDataIsolation $dataIsolation, string $model): ?ImageModel
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $result = $this->getByAdmin($dataIsolation, $model);
+
+        // onlyreturn ImageGenerationModelWrapper typeresult
+        if ($result instanceof ImageModel) {
+            return $result;
+        }
+
+        return null;
+    }
+
+    /**
+     * getcurrentorganizationdown havecanuse chat model.
+     * @return OdinModel[]
+     */
+    public function getChatModels(BaseDataIsolation $dataIsolation): array
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        return $this->getModelsByType($dataIsolation, ModelType::LLM);
+    }
+
+    /**
+     * getcurrentorganizationdown havecanuse embedding model.
+     * @return OdinModel[]
+     */
+    public function getEmbeddingModels(BaseDataIsolation $dataIsolation): array
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        return $this->getModelsByType($dataIsolation, ModelType::EMBEDDING);
+    }
+
+    /**
+     * get all available image models under the current organization.
+     * @return OdinModel[]
+     */
+    public function getImageModels(BaseDataIsolation $dataIsolation): array
+    {
+        $serviceProviderDomainService = di(AdminProviderDomainService::class);
+        $officeModels = $serviceProviderDomainService->getOfficeModels(Category::VLM);
+
+        $odinModels = [];
+        foreach ($officeModels as $model) {
+            $key = $model->getModelId();
+
+            // Create virtual image generation model
+            $imageModel = new ImageGenerationModel(
+                $model->getModelId(),
+                [], // Empty config array
+                $this->logger
+            );
+
+            // Create model attributes
+            $attributes = new OdinModelAttributes(
+                key: $key,
+                name: $model->getModelVersion(),
+                label: $model->getName() ?: 'Image Generation',
+                icon: $model->getIcon() ?: '',
+                tags: [['type' => 1, 'value' => 'Image Generation']],
+                createdAt: $model->getCreatedAt() ?? new DateTime(),
+                owner: 'DelightfulAI',
+                providerAlias: '',
+                providerModelId: (string) $model->getId(),
+                description: $model->getLocalizedDescription($dataIsolation->getLanguage()) ?? '',
+            );
+
+            // Create OdinModel
+            $odinModel = new OdinModel($key, $imageModel, $attributes);
+            $odinModels[$key] = $odinModel;
+        }
+
+        return $odinModels;
+    }
+
+    protected function loadEnvModels(): void
+    {
+        // env addmodelincreaseup attributes
+        /**
+         * @var string $name
+         * @var AbstractModel $model
+         */
+        foreach ($this->models['chat'] as $name => $model) {
+            $key = $name;
+            $this->attributes[$key] = new OdinModelAttributes(
+                key: $key,
+                name: $name,
+                label: $name,
+                icon: '',
+                tags: [['type' => 1, 'value' => 'DelightfulAI']],
+                createdAt: new DateTime(),
+                owner: 'DelightfulOdin',
+                description: '',
+            );
+            $this->logger->info('EnvModelRegister', [
+                'key' => $name,
+                'model' => $model->getModelName(),
+                'implementation' => get_class($model),
+            ]);
+        }
+        foreach ($this->models['embedding'] as $name => $model) {
+            $key = $name;
+            $this->attributes[$key] = new OdinModelAttributes(
+                key: $key,
+                name: $name,
+                label: $name,
+                icon: '',
+                tags: [['type' => 1, 'value' => 'DelightfulAI']],
+                createdAt: new DateTime(),
+                owner: 'DelightfulOdin',
+                description: '',
+            );
+            $this->logger->info('EnvModelRegister', [
+                'key' => $name,
+                'model' => $model->getModelName(),
+                'implementation' => get_class($model),
+                'vector_size' => $model->getModelOptions()->getVectorSize(),
+            ]);
+        }
+    }
+
+    /**
+     * getcurrentorganizationdownfingersettype havecanusemodel.
+     * @return OdinModel[]
+     */
+    private function getModelsByType(ModelGatewayDataIsolation $dataIsolation, ModelType $modelType): array
+    {
+        $list = [];
+
+        // getalreadypersistenceconfiguration
+        $models = $this->getModels($modelType->isLLM() ? 'chat' : 'embedding');
+        foreach ($models as $name => $model) {
+            switch ($modelType) {
+                case ModelType::LLM:
+                    if ($model instanceof AbstractModel && ! $model->getModelOptions()->isChat()) {
+                        continue 2;
+                    }
+                    break;
+                case ModelType::EMBEDDING:
+                    if ($model instanceof AbstractModel && ! $model->getModelOptions()->isEmbedding()) {
+                        continue 2;
+                    }
+                    break;
+                default:
+                    // ifnothavefingersettype,thenalldepartmentadd
+                    break;
+            }
+            $list[$name] = new OdinModel(key: $name, model: $model, attributes: $this->attributes[$name]);
+        }
+
+        // getcurrentsetmealdowncanusemodel
+        $availableModelIds = $dataIsolation->getSubscriptionManager()->getAvailableModelIds($modelType);
+
+        // needcontainofficialorganizationdata
+        $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $providerDataIsolation->setContainOfficialOrganization(true);
+
+        // load model
+        $providerModels = $this->providerManager->getModelsByModelIds($providerDataIsolation, $availableModelIds, $modelType);
+
+        $modelLogs = [];
+
+        $providerConfigIds = [];
+        foreach ($providerModels as $providerModel) {
+            $providerConfigIds[] = $providerModel->getServiceProviderConfigId();
+            $modelLogs[$providerModel->getModelId()] = [
+                'model_id' => $providerModel->getModelId(),
+                'provider_config_id' => (string) $providerModel->getServiceProviderConfigId(),
+                'is_office' => $providerModel->isOffice(),
+            ];
+        }
+        $providerConfigIds = array_unique($providerConfigIds);
+
+        // load servicequotientconfiguration
+        $providerConfigs = $this->providerManager->getProviderConfigsByIds($providerDataIsolation, $providerConfigIds);
+        $providerIds = [];
+        foreach ($providerConfigs as $providerConfig) {
+            $providerIds[] = $providerConfig->getServiceProviderId();
+        }
+
+        // get servicequotient
+        $providers = $this->providerManager->getProvidersByIds($providerDataIsolation, $providerIds);
+
+        // groupinstalldata
+        foreach ($providerModels as $providerModel) {
+            if (! $providerConfig = $providerConfigs[$providerModel->getServiceProviderConfigId()] ?? null) {
+                $modelLogs[$providerModel->getModelId()]['error'] = 'ProviderConfig not found';
+                continue;
+            }
+            if (! $providerConfig->getStatus()->isEnabled()) {
+                $modelLogs[$providerModel->getModelId()]['error'] = 'ProviderConfig disabled';
+                continue;
+            }
+            if (! $provider = $providers[$providerConfig->getServiceProviderId()] ?? null) {
+                $modelLogs[$providerModel->getModelId()]['error'] = 'Provider not found';
+                continue;
+            }
+            $model = $this->createModelByProvider($providerDataIsolation, $providerModel, $providerConfig, $provider);
+            if (! $model) {
+                $modelLogs[$providerModel->getModelId()]['error'] = 'Model disabled or invalid';
+                continue;
+            }
+            $list[$model->getAttributes()->getKey()] = $model;
+        }
+
+        // according to $availableModelIds sort
+        if ($availableModelIds !== null) {
+            $orderedList = [];
+            foreach ($availableModelIds as $modelId) {
+                if (isset($list[$modelId])) {
+                    $orderedList[$modelId] = $list[$modelId];
+                }
+            }
+            $list = $orderedList;
+        }
+
+        $this->logger->info('retrievetomodel', $modelLogs);
+
+        return $list;
+    }
+
+    private function createModelByProvider(
+        ProviderDataIsolation $providerDataIsolation,
+        ProviderModelEntity $providerModelEntity,
+        ProviderConfigEntity $providerConfigEntity,
+        ProviderEntity $providerEntity,
+    ): null|ImageModel|OdinModel {
+        if (! $providerDataIsolation->isOfficialOrganization() && (! $providerModelEntity->getStatus()->isEnabled() || ! $providerConfigEntity->getStatus()->isEnabled())) {
+            return null;
+        }
+
+        $chat = false;
+        $functionCall = false;
+        $multiModal = false;
+        $embedding = false;
+        $vectorSize = 0;
+        if ($providerModelEntity->getModelType()->isLLM()) {
+            $chat = true;
+            $functionCall = $providerModelEntity->getConfig()?->isSupportFunction();
+            $multiModal = $providerModelEntity->getConfig()?->isSupportMultiModal();
+        } elseif ($providerModelEntity->getModelType()->isEmbedding()) {
+            $embedding = true;
+            $vectorSize = $providerModelEntity->getConfig()?->getVectorSize();
+        }
+
+        $key = $providerModelEntity->getModelId();
+
+        $implementation = $providerEntity->getProviderCode()->getImplementation();
+        $providerConfigItem = $providerConfigEntity->getConfig();
+        $implementationConfig = $providerEntity->getProviderCode()->getImplementationConfig($providerConfigItem, $providerModelEntity->getModelVersion());
+
+        if ($providerEntity->getProviderType()->isCustom()) {
+            // customizeservicequotientsystemonedisplayalias,ifnothavealiasthendisplay“customizeservicequotient”(needconsidermultiplelanguage)
+            $providerName = $providerConfigEntity->getLocalizedAlias($providerDataIsolation->getLanguage());
+        } else {
+            // insidesetservicequotientsystemonedisplay servicequotientname,notusedisplayalias(needconsidermultiplelanguage)
+            $providerName = $providerEntity->getLocalizedName($providerDataIsolation->getLanguage());
+        }
+
+        // ifnotisofficialorganization,butismodelisofficialorganization,systemonedisplay Delightful
+        if (! $providerDataIsolation->isOfficialOrganization()
+            && in_array($providerConfigEntity->getOrganizationCode(), $providerDataIsolation->getOfficialOrganizationCodes())) {
+            $providerName = 'Delightful';
+        }
+
+        try {
+            $fileDomainService = di(FileDomainService::class);
+            // ifisofficialorganization icon,switchofficialorganization
+            if ($providerModelEntity->isOffice()) {
+                $iconUrl = $fileDomainService->getLink($providerDataIsolation->getOfficialOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
+            } else {
+                $iconUrl = $fileDomainService->getLink($providerModelEntity->getOrganizationCode(), $providerModelEntity->getIcon())?->getUrl() ?? '';
+            }
+        } catch (Throwable $e) {
+            $iconUrl = '';
+        }
+
+        // according tomodeltypereturndifferentpackageinstallobject
+        if ($providerModelEntity->getModelType()->isVLM()) {
+            return new ImageModel($providerConfigItem->toArray(), $providerModelEntity->getModelVersion(), (string) $providerModelEntity->getId(), $providerEntity->getProviderCode());
+        }
+
+        // toatLLM/Embeddingmodel,maintainoriginalhavelogic
+        return new OdinModel(
+            key: $key,
+            model: $this->createModel($providerModelEntity->getModelVersion(), [
+                'model' => $providerModelEntity->getModelVersion(),
+                'implementation' => $implementation,
+                'config' => $implementationConfig,
+                'model_options' => [
+                    'chat' => $chat,
+                    'function_call' => $functionCall,
+                    'embedding' => $embedding,
+                    'multi_modal' => $multiModal,
+                    'vector_size' => $vectorSize,
+                    'max_tokens' => $providerModelEntity->getConfig()?->getMaxTokens(),
+                    'max_output_tokens' => $providerModelEntity->getConfig()?->getMaxOutputTokens(),
+                    'default_temperature' => $providerModelEntity->getConfig()?->getCreativity(),
+                    'fixed_temperature' => $providerModelEntity->getConfig()?->getTemperature(),
+                ],
+            ]),
+            attributes: new OdinModelAttributes(
+                key: $key,
+                name: $providerModelEntity->getModelId(),
+                label: $providerModelEntity->getName(),
+                icon: $iconUrl,
+                tags: [['type' => 1, 'value' => "{$providerName}"]],
+                createdAt: $providerEntity->getCreatedAt(),
+                owner: 'DelightfulAI',
+                providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
+                providerModelId: (string) $providerModelEntity->getId(),
+                providerId: (string) $providerConfigEntity->getId(),
+                modelType: $providerModelEntity->getModelType()->value,
+                description: $providerModelEntity->getLocalizedDescription($providerDataIsolation->getLanguage()),
+            )
+        );
+    }
+
+    private function getByAdmin(ModelGatewayDataIsolation $dataIsolation, string $model, ?ModelType $modelType = null): null|ImageModel|OdinModel
+    {
+        $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $providerDataIsolation->setContainOfficialOrganization(true);
+
+        $checkStatus = true;
+        if ($dataIsolation->isOfficialOrganization()) {
+            $checkStatus = false;
+        }
+
+        // getmodel
+        $providerModelEntity = $this->providerManager->getAvailableByModelIdOrId($providerDataIsolation, $model, $checkStatus);
+        if (! $providerModelEntity) {
+            $this->logger->info('modelnotexistsin', ['model' => $model]);
+            return null;
+        }
+        if (! $dataIsolation->isOfficialOrganization() && ! $providerModelEntity->getStatus()->isEnabled()) {
+            $this->logger->info('modelbedisable', ['model' => $model]);
+            return null;
+        }
+
+        // checkcurrentsetmealwhetherhavethismodelusepermission - itemfrontonly LLM modelhavethislimit
+        if ($providerModelEntity->getModelType()->isLLM()) {
+            if (! $dataIsolation->isOfficialOrganization() && ! $dataIsolation->getSubscriptionManager()->isValidModelAvailable($providerModelEntity->getModelId(), $modelType)) {
+                $this->logger->info('modelnotincanusenamesingle', ['model' => $providerModelEntity->getModelId(), 'model_type' => $modelType?->value]);
+                return null;
+            }
+        }
+
+        // getconfiguration
+        $providerConfigEntity = $this->providerManager->getProviderConfigsByIds($providerDataIsolation, [$providerModelEntity->getServiceProviderConfigId()])[$providerModelEntity->getServiceProviderConfigId()] ?? null;
+        if (! $providerConfigEntity) {
+            $this->logger->info('servicequotientconfigurationnotexistsin', ['model' => $model, 'provider_config_id' => $providerModelEntity->getServiceProviderConfigId()]);
+            return null;
+        }
+        if (! $dataIsolation->isOfficialOrganization() && ! $providerConfigEntity->getStatus()->isEnabled()) {
+            $this->logger->info('servicequotientconfigurationbedisable', ['model' => $model, 'provider_config_id' => $providerModelEntity->getServiceProviderConfigId()]);
+            return null;
+        }
+
+        // getservicequotient
+        $providerEntity = $this->providerManager->getProvidersByIds($providerDataIsolation, [$providerConfigEntity->getServiceProviderId()])[$providerConfigEntity->getServiceProviderId()] ?? null;
+
+        if (! $providerEntity) {
+            $this->logger->info('servicequotientnotexistsin', ['model' => $model, 'provider_id' => $providerConfigEntity->getServiceProviderId()]);
+            return null;
+        }
+
+        return $this->createModelByProvider($providerDataIsolation, $providerModelEntity, $providerConfigEntity, $providerEntity);
+    }
+
+    private function createProxy(ModelGatewayDataIsolation $dataIsolation, string $model, ModelOptions $modelOptions, ApiOptions $apiOptions, bool $useOfficialAccessToken = false): DelightfulAILocalModel
+    {
+        // useModelFactorycreatemodelinstance
+        $odinModel = ModelFactory::create(
+            DelightfulAILocalModel::class,
+            $model,
+            [
+                'use_official_access_token' => $useOfficialAccessToken,
+                'vector_size' => $modelOptions->getVectorSize(),
+                'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                'user_id' => $dataIsolation->getCurrentUserId(),
+            ],
+            $modelOptions,
+            $apiOptions,
+            $this->logger
+        );
+        if (! $odinModel instanceof DelightfulAILocalModel) {
+            throw new InvalidArgumentException(sprintf('Implementation %s is not defined.', DelightfulAILocalModel::class));
+        }
+        return $odinModel;
+    }
+}

@@ -1,0 +1,99 @@
+<goal>
+Given a conversation between a user and an assistant, determine which details are useful for future conversations and worth remembering.
+</goal>
+
+<conversation>
+${topic.messages}
+</conversation>
+
+<positive_criteria>
+- **High-level preferences**: Macro preferences about how the user likes to work (must be specific and actionable).
+- **General patterns**: Broad methods or patterns the user prefers that include clear guidance.
+- **Technologies and tools**: Specific tech or tool choices (for example, explicit style rules or software selections).
+- **Pain points and avoidances**: Concrete pain points or frustrations the user wants to avoid.
+- **Workflows**: Workflow preferences that include concrete steps or rules.
+- **Recurring themes**: Clear themes that recur across requests and can guide future responses.
+- **Explicit requests**: Things the user directly asks the AI to remember.
+- **Strong opinions**: Specific, action-guiding personal stances expressed by the user.
+</positive_criteria>
+
+<negative_criteria>
+- **One-off details**: Information that only applies to the current task and is not generalizable.
+- **Implementation specifics**: Concrete implementation steps that are unlikely to be reused.
+- **Temporary context**: Context that will no longer matter in future conversations.
+- **Non-user sources**: Opinions or information that come solely from the assistant rather than the user.
+- **Narrow applicability**: Details tied to a single project or element that cannot be broadly applied.
+- **Vague preferences**: Preferences that are too vague to guide action (for example, “likes well-organized content”).
+- **Generic best practices**: Universal best practices anyone would endorse (for example, “focus on quality”).
+- **Basic general principles**: Very basic principles (for example, “value efficiency”).
+</negative_criteria>
+
+<examples_should_not_remember>
+task-specific-detail: In this specific report, adjust the heading of section three. (task-specific)
+choice-in-context: In this document, use “client” instead of “customer.” (implementation detail)
+source-used: This information comes from a particular source. (context-specific)
+minor-adjustment: Add extra spaces in this paragraph. (highly specific detail)
+vague-navigation: The user often needs to handle navigation logic. (too vague)
+organization-preference: The user likes well-organized content. (too obvious and vague)
+importance-of-quality: Quality is important to the user. (too obvious)
+basic-handling: The user wants solid handling. (not actionable)
+problem-solving-strategy: Prefers breaking complex problems into smaller parts and working through them before trying alternatives. (common, somewhat obvious approach)
+basic-principles: Basic principles like valuing efficiency and avoiding repetition. (too obvious and vague)
+
+
+# Deep dive on “bad memories”
+
+#### Scenario 1: User confirms a specific implementation
+**Conversation example**:
+- User: “I only want the `calculate_discount` function to apply to premium members. I added an `if user.is_premium:` check inside the function—is that correct?”
+- Assistant: “Yes, that works. Adding a condition inside `calculate_discount` to check membership is a good way to limit it to premium users.”
+
+**Inappropriate memory**:
+`feature-control: Control whether a feature runs by adding a conditional in the function.`
+
+**Why this is a bad memory**:
+This is a general programming practice, not a unique user preference. The user was simply validating a specific implementation, not defining a reusable rule for the future. Treating this one-off detail as a long-term preference over-interprets their intent and should not be stored.
+
+## Scenario 2: User asks only for the current task
+**Conversation example**:
+- User: I am handling a task and want to split out a step. Should I clean first or validate first?
+- Assistant: Clean first, then validate so validation works on normalized data.
+
+**Inappropriate memory**:
+`order-preference: For this task, always clean before validating.`
+
+**Why this is a bad memory**:
+This is a one-off detail about step order for a specific task. The user did not express a general workflow preference—just asked for advice on the current issue. It should not be generalized to all future scenarios.
+
+</examples_should_not_remember>
+
+<examples_should_remember>
+
+length-preference: Keep documents under five pages to maintain readability. (specific and actionable)
+prefer-method: Use one particular style instead of another. (clear preference that affects work)
+strict-mode: Always enable a specific setting in the project. (specific configuration)
+planning-approach: Create a plan before implementing new tasks. (clear workflow preference)
+tool-choice: Prefer tool A over tool B for new work. (clear technology choice)
+pre-step: Complete preparation steps before starting the main task. (specific workflow step)
+layout-preference: Work with a specific layout or tool. (specific tooling choice)
+</examples_should_remember>
+
+<labeling_instructions>
+Labels should summarize the generalized concept, use only lowercase letters and hyphens ('-'), and serve as the unique identifier for the memory.
+</labeling_instructions>
+
+<formatting_instructions>
+Your output must strictly follow one of these two formats:
+
+1. **If you extract a valid memory**, use this JSON structure:
+    ```json
+    {
+      "explanation": "Explain why this memory is worth keeping. Reference the positive and negative criteria to show which positives it meets and which negatives it avoids.",
+      "memory": "A concise, generalized preference or method distilled from the conversation, no more than three sentences, without quoting the specific dialogue.",
+      "tags": ["tag-one", "tag-two"]
+    }
+    ```
+
+2. **If no valid memory is found**, return the string:
+    "no_memory_needed"
+</formatting_instructions>

@@ -1,0 +1,61 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Chat\DTO\Message\ChatMessage\Item;
+
+use App\Domain\Chat\Entity\AbstractEntity;
+
+/**
+ * chatinstructionactualbodycategory,according to proto definition.
+ */
+class ChatInstruction extends AbstractEntity
+{
+    /**
+     * instructionvalue.
+     */
+    protected string $value = '';
+
+    /**
+     * instructiontype.
+     */
+    protected ?InstructionConfig $instruction = null;
+
+    public function __construct(array $instruction)
+    {
+        parent::__construct($instruction);
+    }
+
+    public function getValue(): string
+    {
+        return $this->value;
+    }
+
+    public function setValue(string $value): void
+    {
+        $this->value = $value;
+    }
+
+    public function getInstruction(): ?InstructionConfig
+    {
+        return $this->instruction;
+    }
+
+    public function setInstruction(null|array|InstructionConfig $instruction): void
+    {
+        if (isset($instruction)) {
+            if (is_array($instruction)) {
+                $this->instruction = new InstructionConfig($instruction);
+            /* @phpstan-ignore-next-line */
+            } elseif (! $instruction instanceof InstructionConfig) {
+                // ifnotisarrayalsonotis InstructionConfig object,thencreateonenull InstructionConfig object
+                $this->instruction = new InstructionConfig([]);
+            }
+        } else {
+            $this->instruction = null;
+        }
+    }
+}

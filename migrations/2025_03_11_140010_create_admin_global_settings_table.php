@@ -1,0 +1,35 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+use Hyperf\Database\Migrations\Migration;
+use Hyperf\Database\Schema\Blueprint;
+use Hyperf\Database\Schema\Schema;
+
+return new class extends Migration {
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('admin_global_settings', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->unsignedInteger('type')->comment('type');
+            $table->unsignedTinyInteger('status')->default(0)->comment('status');
+            $table->json('extra')->nullable()->comment('quotaoutsideconfiguration');
+            $table->string('organization')->comment('organizationencoding');
+            $table->unique(['type', 'organization'], 'unique_type_organization');
+            $table->datetimes();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('admin_global_settings');
+    }
+};

@@ -1,0 +1,214 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Contact\Repository\Persistence;
+
+use App\Domain\Contact\Entity\AccountEntity;
+use App\Domain\Contact\Repository\Facade\DelightfulAccountRepositoryInterface;
+use App\Domain\Contact\Repository\Persistence\Model\AccountModel;
+use App\ErrorCode\UserErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Interfaces\Chat\Assembler\UserAssembler;
+use Hyperf\Cache\Annotation\Cacheable;
+use Hyperf\Cache\Annotation\CacheEvict;
+use Hyperf\DbConnection\Db;
+
+readonly class DelightfulAccountRepository implements DelightfulAccountRepositoryInterface
+{
+    public function __construct(
+        protected AccountModel $accountModel,
+    ) {
+    }
+
+    public function getAccountInfoByDelightfulId(string $delightfulId): ?AccountEntity
+    {
+        $account = $this->getAccountInfo($delightfulId);
+        if ($account === null) {
+            return null;
+        }
+        return UserAssembler::getAccountEntity($account);
+    }
+
+    /**
+     * @return AccountEntity[]
+     */
+    public function getAccountByDelightfulIds(array $delightfulIds): array
+    {
+        $accounts = AccountModel::query()->whereIn('delightful_id', $delightfulIds);
+        $accounts = Db::select($accounts->toSql(), $accounts->getBindings());
+        $data = [];
+        foreach ($accounts as $account) {
+            $accountEntity = UserAssembler::getAccountEntity($account);
+            $data[$accountEntity->getDelightfulId()] = $accountEntity;
+        }
+        return $data;
+    }
+
+    public function createAccount(AccountEntity $accountDTO): AccountEntity
+    {
+        $time = date('Y-m-d H:i:s');
+        $accountDTO = $this->createAccountCheck($accountDTO);
+        $this->accountModel::query()->create([
+            'id' => $accountDTO->getId(),
+            'delightful_id' => $accountDTO->getDelightfulId(),
+            'type' => $accountDTO->getType()->value,
+            'ai_code' => $accountDTO->getAiCode(),
+            'status' => $accountDTO->getStatus()->value,
+            'country_code' => $accountDTO->getCountryCode(),
+            'phone' => $accountDTO->getPhone(),
+            'email' => $accountDTO->getEmail(),
+            'real_name' => $accountDTO->getRealName(),
+            'password' => $accountDTO->getPassword(),
+            'created_at' => $time,
+            'updated_at' => $time,
+        ]);
+        return $accountDTO;
+    }
+
+    /**
+     * @param AccountEntity[] $accountDTOs
+     * @return AccountEntity[]
+     */
+    public function createAccounts(array $accountDTOs): array
+    {
+        $data = [];
+        $accountEntities = [];
+        $time = date('Y-m-d H:i:s');
+        foreach ($accountDTOs as $accountDTO) {
+            $accountDTO = $this->createAccountCheck($accountDTO);
+            $accountDTO->setCreatedAt($time);
+            $accountDTO->setUpdatedAt($time);
+            $accountDTO->setDeletedAt(null);
+            $data[] = $accountDTO->toArray();
+            $accountEntities[] = $accountDTO;
+        }
+        $this->accountModel::query()->insert($data);
+        return $accountEntities;
+    }
+
+    /**
+     * @return AccountEntity[]
+     */
+    public function getAccountInfoByDelightfulIds(array $delightfulIds): array
+    {
+        $query = $this->accountModel::query()->whereIn('delightful_id', $delightfulIds);
+        $accounts = Db::select($query->toSql(), $query->getBindings());
+        return UserAssembler::getAccountEntities($accounts);
+    }
+
+    public function getAccountInfoByAiCode(string $aiCode): ?AccountEntity
+    {
+        $account = $this->getAccountArrayByAiCode($aiCode);
+        if ($account === null) {
+            return null;
+        }
+        return UserAssembler::getAccountEntity($account);
+    }
+
+    /**
+     * @return AccountEntity[]
+     */
+    public function searchUserByPhoneOrRealName(string $query): array
+    {
+        if (empty($query)) {
+            return [];
+        }
+        $sqlQuery = $this->accountModel::query();
+        // judge $query whetheralldepartmentismiddletext,orlengthgreater than3
+        if (preg_match('/^[\x{4e00}-\x{9fa5}]+$/u', $query) || strlen($query) > 3) {
+            $sqlQuery->where('real_name', 'like', "%{$query}%");
+        }
+        $sqlQuery->orwhere('phone', '=', $query);
+        $accounts = Db::select($sqlQuery->toSql(), $sqlQuery->getBindings());
+        return UserAssembler::getAccountEntities($accounts);
+    }
+
+    #[CacheEvict(prefix: 'accountDelightfulId', value: '_#{delightfulId}')]
+    public function updateAccount(string $delightfulId, array $updateData): int
+    {
+        $time = date('Y-m-d H:i:s');
+        $updateData['updated_at'] = $time;
+        $updateData['deleted_at'] = null;
+        unset($updateData['created_at'], $updateData['id']);
+        return $this->accountModel::query()->where('delightful_id', $delightfulId)->update($updateData);
+    }
+
+    #[CacheEvict(prefix: 'accountDelightfulId', value: '_#{accountDTO.delightfulId}')]
+    public function saveAccount(AccountEntity $accountDTO): AccountEntity
+    {
+        $account = $this->getDelightfulEntityWithoutCache($accountDTO->getDelightfulId());
+        // notexistsinthencreate
+        if (! $account) {
+            return $this->createAccount($accountDTO);
+        }
+        // update
+        $accountData = $accountDTO->toArray();
+        $this->updateAccount($accountDTO->getDelightfulId(), $accountData);
+        # prevent $accountDTO middleparameternotall,againcheckonetimelibrary
+        return $this->getDelightfulEntityWithoutCache($accountDTO->getDelightfulId());
+    }
+
+    /**
+     * @return AccountEntity[]
+     */
+    public function getAccountInfoByAiCodes(array $aiCodes): array
+    {
+        $accounts = $this->accountModel::query()->whereIn('ai_code', $aiCodes);
+        $accounts = Db::select($accounts->toSql(), $accounts->getBindings());
+        return array_map(fn (array $account) => UserAssembler::getAccountEntity($account), $accounts);
+    }
+
+    public function getByAiCode(string $aiCode): ?AccountEntity
+    {
+        $model = AccountModel::query()->where('ai_code', $aiCode);
+        $model = Db::select($model->toSql(), $model->getBindings())[0] ?? null;
+        if (empty($model)) {
+            return null;
+        }
+        return UserAssembler::getAccountEntity($model);
+    }
+
+    private function createAccountCheck(AccountEntity $accountDTO): AccountEntity
+    {
+        if (empty($accountDTO->getDelightfulId())) {
+            ExceptionBuilder::throw(UserErrorCode::ACCOUNT_ERROR);
+        }
+        if ($accountDTO->getId() === null) {
+            $id = IdGenerator::getSnowId();
+            $accountDTO->setId($id);
+        }
+        return $accountDTO;
+    }
+
+    private function getDelightfulEntityWithoutCache(string $delightfulId): ?AccountEntity
+    {
+        # prevent $accountDTO middleparameternotall,againcheckonetimelibrary
+        $account = $this->accountModel::query()->where('delightful_id', $delightfulId);
+        $account = Db::select($account->toSql(), $account->getBindings())[0] ?? null;
+        if (empty($account)) {
+            return null;
+        }
+        return UserAssembler::getAccountEntity($account);
+    }
+
+    // avoid redis cacheserializeobject,occupyusetoomultipleinsideexists
+    #[Cacheable(prefix: 'accountDelightfulId', ttl: 60)]
+    private function getAccountInfo(string $delightfulId): ?array
+    {
+        $query = $this->accountModel::query()->where('delightful_id', $delightfulId);
+        return Db::select($query->toSql(), $query->getBindings())[0] ?? null;
+    }
+
+    // avoid redis cacheserializeobject,occupyusetoomultipleinsideexists
+    #[Cacheable(prefix: 'accountAiCode', ttl: 60)]
+    private function getAccountArrayByAiCode(string $aiCode): ?array
+    {
+        $query = $this->accountModel::query()->where('ai_code', $aiCode);
+        return Db::select($query->toSql(), $query->getBindings())[0] ?? null;
+    }
+}

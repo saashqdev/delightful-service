@@ -1,0 +1,18 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Contact\Service\Facade;
+
+use App\Domain\Contact\DTO\UserUpdateDTO;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+
+interface DelightfulUserDomainExtendInterface
+{
+    public function getUserUpdatePermission(DataIsolation $dataIsolation): array;
+
+    public function updateUserInfo(DataIsolation $dataIsolation, UserUpdateDTO $userUpdateDTO): int;
+}

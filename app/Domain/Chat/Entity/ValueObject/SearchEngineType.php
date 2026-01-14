@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Chat\Entity\ValueObject;
+
+enum SearchEngineType: string
+{
+    // bing
+    case Bing = 'bing';
+
+    // google
+    case Google = 'google';
+
+    // tavily
+    case Tavily = 'tavily';
+
+    // duckduckgo
+    case DuckDuckGo = 'duckduckgo';
+
+    // cloudsway
+    case Cloudsway = 'cloudsway';
+
+    // delightful
+    case Delightful = 'delightful';
+
+    // jina
+    case Jina = 'jina';
+}

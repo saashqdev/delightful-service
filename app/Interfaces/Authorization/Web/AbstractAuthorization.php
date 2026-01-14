@@ -1,0 +1,23 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Interfaces\Authorization\Web;
+
+use App\Infrastructure\Core\UnderlineObjectJsonSerializable;
+use Hyperf\Context\Context;
+use Qbhy\HyperfAuth\Authenticatable;
+
+abstract class AbstractAuthorization extends UnderlineObjectJsonSerializable implements Authenticatable
+{
+    /**
+     * passobjectmethodcalloperationasauth,whilenotisdirectlyusecoroutine,decreaseiterationandcomprehendcost.
+     */
+    public function setUserAuthToContext(string $key): void
+    {
+        Context::set($key, $this);
+    }
+}

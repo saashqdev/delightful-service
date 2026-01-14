@@ -1,0 +1,18 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Infrastructure\Core\Embeddings\EmbeddingGenerator;
+
+use function Hyperf\Config\config;
+
+class EmbeddingGenerator
+{
+    public static function defaultModel(): string
+    {
+        return config('delightful_flows.default_embedding_model');
+    }
+}

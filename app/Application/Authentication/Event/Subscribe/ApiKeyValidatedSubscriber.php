@@ -1,0 +1,48 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Application\Authentication\Event\Subscribe;
+
+use App\Domain\Authentication\Entity\ValueObject\AuthenticationDataIsolation;
+use App\Domain\Authentication\Event\ApiKeyValidatedEvent;
+use App\Domain\Authentication\Service\ApiKeyProviderDomainService;
+use Delightful\AsyncEvent\Kernel\Annotation\AsyncListener;
+use Hyperf\Event\Annotation\Listener;
+use Hyperf\Event\Contract\ListenerInterface;
+use Psr\Container\ContainerInterface;
+
+#[AsyncListener]
+#[Listener]
+readonly class ApiKeyValidatedSubscriber implements ListenerInterface
+{
+    public function __construct(private ContainerInterface $container)
+    {
+    }
+
+    public function listen(): array
+    {
+        return [
+            ApiKeyValidatedEvent::class,
+        ];
+    }
+
+    public function process(object $event): void
+    {
+        if (! $event instanceof ApiKeyValidatedEvent) {
+            return;
+        }
+
+        $apiKeyProvider = $event->getApiKeyProvider();
+
+        // createonenulldataisolationobject
+        $dataIsolation = AuthenticationDataIsolation::create($apiKeyProvider->getOrganizationCode())->disabled();
+
+        // passdomainserviceupdatemostbackusetime
+        $this->container->get(ApiKeyProviderDomainService::class)
+            ->updateLastUsed($dataIsolation, $apiKeyProvider);
+    }
+}

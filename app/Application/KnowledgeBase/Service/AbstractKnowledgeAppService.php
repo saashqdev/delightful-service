@@ -1,0 +1,93 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Application\KnowledgeBase\Service;
+
+use App\Application\Kernel\AbstractKernelAppService;
+use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\DocumentFileStrategy;
+use App\Application\KnowledgeBase\Service\Strategy\KnowledgeBase\KnowledgeBaseStrategyInterface;
+use App\Application\KnowledgeBase\VectorDatabase\Similarity\KnowledgeSimilarityManager;
+use App\Application\Permission\Service\OperationPermissionAppService;
+use App\Domain\Contact\Service\DelightfulUserDomainService;
+use App\Domain\File\Service\FileDomainService;
+use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
+use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
+use App\Domain\KnowledgeBase\Service\KnowledgeBaseDocumentDomainService;
+use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
+use App\Domain\KnowledgeBase\Service\KnowledgeBaseFragmentDomainService;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
+use App\Domain\Provider\Service\AdminProviderDomainService;
+use App\ErrorCode\PermissionErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\File\Parser\FileParser;
+use App\Interfaces\KnowledgeBase\Assembler\KnowledgeBaseDocumentAssembler;
+use App\Interfaces\KnowledgeBase\DTO\DocumentFile\DocumentFileDTOInterface;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
+
+abstract class AbstractKnowledgeAppService extends AbstractKernelAppService
+{
+    protected LoggerInterface $logger;
+
+    public function __construct(
+        protected readonly DelightfulUserDomainService $delightfulUserDomainService,
+        protected readonly OperationPermissionAppService $operationPermissionAppService,
+        protected readonly KnowledgeBaseDomainService $knowledgeBaseDomainService,
+        protected readonly KnowledgeBaseDocumentDomainService $knowledgeBaseDocumentDomainService,
+        protected readonly KnowledgeBaseFragmentDomainService $knowledgeBaseFragmentDomainService,
+        protected readonly FileDomainService $fileDomainService,
+        protected readonly AdminProviderDomainService $serviceProviderDomainService,
+        protected readonly FileParser $fileParser,
+        protected readonly KnowledgeSimilarityManager $knowledgeSimilarityManager,
+        protected readonly DocumentFileStrategy $documentFileStrategy,
+        protected readonly KnowledgeBaseStrategyInterface $knowledgeBaseStrategy,
+        LoggerFactory $loggerFactory,
+    ) {
+        $this->logger = $loggerFactory->get(get_class($this));
+    }
+
+    /**
+     * @param array<DocumentFileDTOInterface> $dtoList
+     * @return array<DocumentFileInterface>
+     */
+    public function documentFileDTOListToVOList(array $dtoList): array
+    {
+        return array_map(fn (DocumentFileDTOInterface $dto) => KnowledgeBaseDocumentAssembler::documentFileDTOToVO($dto), $dtoList);
+    }
+
+    /**
+     * knowledge basepermissionvalidation.
+     * @param string $knowledgeBaseCode required parameter
+     * @param null|string $documentCode select upload
+     * @param null|int $fragmentId select upload
+     */
+    protected function checkKnowledgeBaseOperation(
+        KnowledgeBaseDataIsolation $dataIsolation,
+        string $operation,
+        string $knowledgeBaseCode,
+        ?string $documentCode = null,
+        ?int $fragmentId = null,
+    ): Operation {
+        // ifpassslicesegmentid,thengetdocumenttoshouldknowledge basecodeanddocumentcode,andconductvalidation
+        if ($fragmentId) {
+            $fragment = $this->knowledgeBaseFragmentDomainService->show($dataIsolation, $fragmentId);
+            if ($knowledgeBaseCode !== $fragment->getKnowledgeCode() || $documentCode !== $fragment->getDocumentCode()) {
+                ExceptionBuilder::throw(PermissionErrorCode::AccessDenied, 'common.access', ['label' => $operation]);
+            }
+        }
+        // ifpassdocumentcode,thengetdocumenttoshouldknowledge basecode,andconductvalidation
+        if ($documentCode) {
+            $document = $this->knowledgeBaseDocumentDomainService->show($dataIsolation, $knowledgeBaseCode, $documentCode);
+            if ($knowledgeBaseCode !== $document->getKnowledgeBaseCode()) {
+                ExceptionBuilder::throw(PermissionErrorCode::AccessDenied, 'common.access', ['label' => $operation]);
+            }
+        }
+        $operationVO = $this->knowledgeBaseStrategy->getKnowledgeOperation($dataIsolation, $knowledgeBaseCode);
+        $operationVO->validate($operation, $knowledgeBaseCode);
+        return $operationVO;
+    }
+}

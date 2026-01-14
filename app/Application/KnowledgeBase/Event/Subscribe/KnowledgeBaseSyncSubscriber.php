@@ -1,0 +1,104 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Application\KnowledgeBase\Event\Subscribe;
+
+use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\DocumentFileStrategy;
+use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
+use App\Domain\KnowledgeBase\Entity\KnowledgeBaseDocumentEntity;
+use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
+use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
+use App\Domain\KnowledgeBase\Event\KnowledgeBaseSavedEvent;
+use App\Domain\KnowledgeBase\Service\KnowledgeBaseDocumentDomainService;
+use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use Hyperf\Event\Annotation\Listener;
+use Hyperf\Event\Contract\ListenerInterface;
+use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
+use Throwable;
+
+#[Listener]
+readonly class KnowledgeBaseSyncSubscriber implements ListenerInterface
+{
+    public function __construct(private ContainerInterface $container)
+    {
+    }
+
+    public function listen(): array
+    {
+        return [
+            KnowledgeBaseSavedEvent::class,
+        ];
+    }
+
+    public function process(object $event): void
+    {
+        if (! $event instanceof KnowledgeBaseSavedEvent) {
+            return;
+        }
+        $knowledge = $event->delightfulFlowKnowledgeEntity;
+        $dataIsolation = $event->dataIsolation;
+        // ifisfoundationknowledge basetype,thenpassknowledge basecreateperson,avoidpermissionnotenough
+        if (in_array($knowledge->getType(), KnowledgeType::getAll())) {
+            $dataIsolation->setCurrentUserId($knowledge->getCreator())->setCurrentOrganizationCode($knowledge->getOrganizationCode());
+        }
+        /** @var KnowledgeBaseDomainService $knowledgeBaseDomainService */
+        $knowledgeBaseDomainService = $this->container->get(KnowledgeBaseDomainService::class);
+
+        /** @var KnowledgeBaseDocumentDomainService $knowledgeBaseDocumentDomainService */
+        $knowledgeBaseDocumentDomainService = di(KnowledgeBaseDocumentDomainService::class);
+
+        /** @var DocumentFileStrategy $documentFileStrategy */
+        $documentFileStrategy = di(DocumentFileStrategy::class);
+
+        /** @var LoggerInterface $logger */
+        $logger = di(LoggerInterface::class);
+
+        $changed = false;
+        try {
+            $vector = $knowledge->getVectorDBDriver();
+            $collection = $vector->getCollection($knowledge->getCollectionName());
+            if (! $collection) {
+                $knowledge->setSyncStatus(KnowledgeSyncStatus::Syncing);
+                $knowledgeBaseDomainService->changeSyncStatus($knowledge);
+
+                $modelGatewayDataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
+                $model = $this->container->get(ModelGatewayMapper::class)->getEmbeddingModelProxy($modelGatewayDataIsolation, $knowledge->getModel());
+                $vector->createCollection($knowledge->getCollectionName(), $model->getVectorSize());
+                $knowledge->setSyncStatus(KnowledgeSyncStatus::Synced);
+                $changed = true;
+            }
+            // preprocessdocumentFile
+            $processedDocumentFiles = $documentFileStrategy->preProcessDocumentFiles($dataIsolation, $event->documentFiles);
+
+            // according tofilesbatchquantitycreatedocument
+            foreach ($processedDocumentFiles as $file) {
+                $documentEntity = (new KnowledgeBaseDocumentEntity())
+                    ->setKnowledgeBaseCode($knowledge->getCode())
+                    ->setName($file->getName())
+                    ->setCreatedUid($knowledge->getCreator())
+                    ->setUpdatedUid($knowledge->getCreator())
+                    ->setEmbeddingModel($knowledge->getModel())
+                    ->setFragmentConfig($knowledge->getFragmentConfig())
+                    ->setEmbeddingConfig($knowledge->getEmbeddingConfig())
+                    ->setRetrieveConfig($knowledge->getRetrieveConfig())
+                    ->setVectorDb($knowledge->getVectorDb())
+                    ->setDocumentFile($file);
+                $knowledgeBaseDocumentDomainService->create(clone $dataIsolation, $knowledge, $documentEntity);
+            }
+        } catch (Throwable $throwable) {
+            $logger->error($throwable->getMessage() . PHP_EOL . $throwable->getTraceAsString());
+            $knowledge->setSyncStatus(KnowledgeSyncStatus::SyncFailed);
+            $knowledge->setSyncStatusMessage($throwable->getMessage());
+            // samefailed,backversion
+            $knowledge->setVersion(max(1, $knowledge->getVersion() - 1));
+            $changed = true;
+        }
+        $changed && $knowledgeBaseDomainService->changeSyncStatus($knowledge);
+    }
+}

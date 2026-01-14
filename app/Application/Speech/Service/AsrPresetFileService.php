@@ -1,0 +1,312 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Application\Speech\Service;
+
+use App\Application\Speech\Assembler\AsrAssembler;
+use App\ErrorCode\AsrErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\Context\CoContext;
+use Delightful\BeDelightful\Domain\BeAgent\Entity\TaskFileEntity;
+use Delightful\BeDelightful\Domain\BeAgent\Service\ProjectDomainService;
+use Delightful\BeDelightful\Domain\BeAgent\Service\TaskFileDomainService;
+use Hyperf\Codec\Json;
+use Hyperf\Contract\TranslatorInterface;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
+use Throwable;
+
+/**
+ * ASR presetfileservice
+ * responsiblecreatepresetnoteandstreamidentifyfile,supplyfrontclientwritecontent.
+ */
+readonly class AsrPresetFileService
+{
+    private LoggerInterface $logger;
+
+    public function __construct(
+        private ProjectDomainService $projectDomainService,
+        private TaskFileDomainService $taskFileDomainService,
+        LoggerFactory $loggerFactory
+    ) {
+        $this->logger = $loggerFactory->get('AsrPresetFileService');
+    }
+
+    /**
+     * createpresetnoteandstreamidentifyfile.
+     *
+     * @param string $userId userID
+     * @param string $organizationCode organizationencoding
+     * @param int $projectId projectID
+     * @param string $displayDir displaydirectoryrelatedtopath (like: recordingsummary_xxx)
+     * @param int $displayDirId displaydirectoryID
+     * @param string $hiddenDir hiddendirectoryrelatedtopath (like: .asr_recordings/session_xxx)
+     * @param int $hiddenDirId hiddendirectoryID
+     * @param string $taskKey taskkey
+     * @return array{note_file: TaskFileEntity, transcript_file: TaskFileEntity}
+     */
+    public function createPresetFiles(
+        string $userId,
+        string $organizationCode,
+        int $projectId,
+        string $displayDir,
+        int $displayDirId,
+        string $hiddenDir,
+        int $hiddenDirId,
+        string $taskKey
+    ): array {
+        // getprojectinfo
+        $projectEntity = $this->projectDomainService->getProject($projectId, $userId);
+        $workDir = $projectEntity->getWorkDir();
+
+        // getorganizationcode+APP_ID+bucket_md5frontsuffix
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+
+        // createnotefile(putindisplaydirectory,uservisible)
+        $noteFile = $this->createNoteFile(
+            $userId,
+            $organizationCode,
+            $projectId,
+            $displayDir,
+            $displayDirId,
+            $taskKey,
+            $fullPrefix,
+            $workDir
+        );
+
+        // createstreamidentifyfile(putinhiddendirectory,usernotvisible)
+        $transcriptFile = $this->createTranscriptFile(
+            $userId,
+            $organizationCode,
+            $projectId,
+            $hiddenDir,
+            $hiddenDirId,
+            $taskKey,
+            $fullPrefix,
+            $workDir
+        );
+
+        $this->logger->info('createpresetfilesuccess', [
+            'task_key' => $taskKey,
+            'note_file_id' => $noteFile->getFileId(),
+            'transcript_file_id' => $transcriptFile->getFileId(),
+        ]);
+
+        return [
+            'note_file' => $noteFile,
+            'transcript_file' => $transcriptFile,
+        ];
+    }
+
+    /**
+     * deletenotefile(notecontentforemptyo clockcleanup).
+     *
+     * @param string $fileId fileID
+     * @return bool whetherdeletesuccess
+     */
+    public function deleteNoteFile(string $fileId): bool
+    {
+        try {
+            $fileEntity = $this->taskFileDomainService->getById((int) $fileId);
+            if ($fileEntity === null) {
+                $this->logger->warning('notefilenotexistsin', ['file_id' => $fileId]);
+                return false;
+            }
+
+            $this->taskFileDomainService->deleteById($fileEntity->getFileId());
+
+            $this->logger->info('deletenotefilesuccess', [
+                'file_id' => $fileId,
+                'file_name' => $fileEntity->getFileName(),
+            ]);
+
+            return true;
+        } catch (Throwable $e) {
+            $this->logger->error('deletenotefilefail', [
+                'file_id' => $fileId,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * deletestreamidentifyfile(summarycompletebackcleanup).
+     *
+     * @param string $fileId fileID
+     * @return bool whetherdeletesuccess
+     */
+    public function deleteTranscriptFile(string $fileId): bool
+    {
+        try {
+            $fileEntity = $this->taskFileDomainService->getById((int) $fileId);
+            if ($fileEntity === null) {
+                $this->logger->warning('streamidentifyfilenotexistsin', ['file_id' => $fileId]);
+                return false;
+            }
+
+            $this->taskFileDomainService->deleteById($fileEntity->getFileId());
+
+            $this->logger->info('deletestreamidentifyfilesuccess', [
+                'file_id' => $fileId,
+                'file_name' => $fileEntity->getFileName(),
+            ]);
+
+            return true;
+        } catch (Throwable $e) {
+            $this->logger->error('deletestreamidentifyfilefail', [
+                'file_id' => $fileId,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * createnotefile(putindisplaydirectory).
+     */
+    private function createNoteFile(
+        string $userId,
+        string $organizationCode,
+        int $projectId,
+        string $displayDir,
+        int $displayDirId,
+        string $taskKey,
+        string $fullPrefix,
+        string $workDir
+    ): TaskFileEntity {
+        // ⚠️ use CoContext and di() getcorrectlanguageandtranslate
+        $language = CoContext::getLanguage();
+        $translator = di(TranslatorInterface::class);
+        $translator->setLocale($language);
+
+        $fileName = $translator->trans('asr.file_names.preset_note') . '.md';
+        $relativePath = rtrim($displayDir, '/') . '/' . $fileName;
+
+        return $this->createPresetFile(
+            userId: $userId,
+            organizationCode: $organizationCode,
+            projectId: $projectId,
+            parentId: $displayDirId,
+            fileName: $fileName,
+            relativePath: $relativePath,
+            fileType: 'note',
+            isHidden: false,
+            taskKey: $taskKey,
+            fullPrefix: $fullPrefix,
+            workDir: $workDir,
+            logPrefix: 'presetnotefile'
+        );
+    }
+
+    /**
+     * createstreamidentifyfile(putinhiddendirectory).
+     */
+    private function createTranscriptFile(
+        string $userId,
+        string $organizationCode,
+        int $projectId,
+        string $hiddenDir,
+        int $hiddenDirId,
+        string $taskKey,
+        string $fullPrefix,
+        string $workDir
+    ): TaskFileEntity {
+        // ⚠️ use CoContext and di() getcorrectlanguageandtranslate
+        $language = CoContext::getLanguage();
+        $translator = di(TranslatorInterface::class);
+        $translator->setLocale($language);
+
+        $fileName = $translator->trans('asr.file_names.preset_transcript') . '.md';
+        $relativePath = rtrim($hiddenDir, '/') . '/' . $fileName;
+
+        return $this->createPresetFile(
+            userId: $userId,
+            organizationCode: $organizationCode,
+            projectId: $projectId,
+            parentId: $hiddenDirId,
+            fileName: $fileName,
+            relativePath: $relativePath,
+            fileType: 'transcript',
+            isHidden: true,
+            taskKey: $taskKey,
+            fullPrefix: $fullPrefix,
+            workDir: $workDir,
+            logPrefix: 'presetstreamidentifyfile'
+        );
+    }
+
+    /**
+     * createpresetfilecommonusemethod.
+     */
+    private function createPresetFile(
+        string $userId,
+        string $organizationCode,
+        int $projectId,
+        int $parentId,
+        string $fileName,
+        string $relativePath,
+        string $fileType,
+        bool $isHidden,
+        string $taskKey,
+        string $fullPrefix,
+        string $workDir,
+        string $logPrefix
+    ): TaskFileEntity {
+        // complete file_key
+        $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
+
+        // yuandata
+        $metadata = [
+            'asr_preset_file' => true,
+            'file_type' => $fileType,
+            'task_key' => $taskKey,
+            'created_by' => 'asr_preset_file_service',
+            'created_at' => date('Y-m-d H:i:s'),
+        ];
+
+        $taskFileEntity = new TaskFileEntity([
+            'user_id' => $userId,
+            'organization_code' => $organizationCode,
+            'project_id' => $projectId,
+            'topic_id' => 0,
+            'task_id' => 0,
+            'file_type' => 'user_upload',
+            'file_name' => $fileName,
+            'file_extension' => 'md',
+            'file_key' => $fileKey,
+            'file_size' => 0, // initialfor0,frontclientwritebackwillupdate
+            'external_url' => '',
+            'storage_type' => 'workspace',
+            'is_hidden' => $isHidden,
+            'is_directory' => false,
+            'sort' => 0,
+            'parent_id' => $parentId,
+            'source' => 2, // 2-projectdirectory
+            'metadata' => Json::encode($metadata),
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $result = $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
+        if ($result !== null) {
+            return $result;
+        }
+
+        // ifinsertbeignore(filealreadyexistsin),queryshowhaverecord
+        $existingFile = $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $fileKey);
+        if ($existingFile !== null) {
+            $this->logger->info(sprintf('%salreadyexistsin,useshowhaverecord', $logPrefix), [
+                'task_key' => $taskKey,
+                'file_id' => $existingFile->getFileId(),
+            ]);
+            return $existingFile;
+        }
+
+        ExceptionBuilder::throw(AsrErrorCode::CreatePresetFileFailed);
+    }
+}

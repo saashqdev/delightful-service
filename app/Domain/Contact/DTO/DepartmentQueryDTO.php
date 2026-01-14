@@ -1,0 +1,116 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Contact\DTO;
+
+use App\Domain\Contact\Entity\AbstractEntity;
+use App\Domain\Contact\Entity\ValueObject\DepartmentSumType;
+
+class DepartmentQueryDTO extends AbstractEntity
+{
+    protected string $query = '';
+
+    protected array $userIds = [];
+
+    protected string $departmentId = '';
+
+    protected array $departmentIds = [];
+
+    /**
+     * downonepagetoken, useatpagination. temporaryo clockvalueformysqloffset,backcontinuemaybeforesscroll_id,orfromlineimplementsnapshotmechanism.
+     */
+    protected string $pageToken = '';
+
+    // is_recursive whetherrecursionquery
+    protected bool $isRecursive = false;
+
+    // departmentmemberrequestandtype
+    protected DepartmentSumType $sumType = DepartmentSumType::DirectEmployee;
+
+    protected int $pageSize = 100;
+
+    public function getDepartmentIds(): array
+    {
+        return $this->departmentIds;
+    }
+
+    public function setDepartmentIds(array $departmentIds): self
+    {
+        $this->departmentIds = $departmentIds;
+        return $this;
+    }
+
+    public function getPageSize(): int
+    {
+        return $this->pageSize;
+    }
+
+    public function setPageSize(int $pageSize): void
+    {
+        $this->pageSize = $pageSize;
+    }
+
+    public function getSumType(): DepartmentSumType
+    {
+        return $this->sumType;
+    }
+
+    public function setSumType(DepartmentSumType $sumType): void
+    {
+        $this->sumType = $sumType;
+    }
+
+    public function getQuery(): string
+    {
+        return $this->query;
+    }
+
+    public function setQuery(string $query): void
+    {
+        $this->query = $query;
+    }
+
+    public function getUserIds(): array
+    {
+        return $this->userIds;
+    }
+
+    public function setUserIds(array $userIds): void
+    {
+        $this->userIds = $userIds;
+    }
+
+    public function getPageToken(): string
+    {
+        return $this->pageToken;
+    }
+
+    public function setPageToken(string $pageToken): void
+    {
+        $this->pageToken = $pageToken;
+    }
+
+    public function getDepartmentId(): string
+    {
+        return $this->departmentId;
+    }
+
+    public function setDepartmentId(string $departmentId): void
+    {
+        $this->departmentId = $departmentId;
+    }
+
+    public function isRecursive(): bool
+    {
+        return $this->isRecursive;
+    }
+
+    public function setIsRecursive(bool $isRecursive): void
+    {
+        $this->isRecursive = $isRecursive;
+    }
+}

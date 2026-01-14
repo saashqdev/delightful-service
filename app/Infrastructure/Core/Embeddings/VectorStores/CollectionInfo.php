@@ -1,0 +1,19 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Infrastructure\Core\Embeddings\VectorStores;
+
+readonly class CollectionInfo
+{
+    public function __construct(
+        public string $name,
+        public int $vectorsCount,
+        public int $pointsCount,
+        public int $vectorSize,
+    ) {
+    }
+}

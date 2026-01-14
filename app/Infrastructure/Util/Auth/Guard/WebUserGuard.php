@@ -1,0 +1,99 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Infrastructure\Util\Auth\Guard;
+
+use App\ErrorCode\UserErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Interfaces\Authorization\Web\DelightfulUserAuthorization;
+use Hyperf\Codec\Json;
+use Hyperf\Di\Annotation\Inject;
+use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\Redis\Redis;
+use Psr\Log\LoggerInterface;
+use Qbhy\HyperfAuth\Authenticatable;
+use Qbhy\HyperfAuth\Guard\AbstractAuthGuard;
+use Throwable;
+
+class WebUserGuard extends AbstractAuthGuard
+{
+    #[Inject]
+    protected LoggerInterface $logger;
+
+    #[Inject]
+    protected Redis $redis;
+
+    public function login(Authenticatable $user): void
+    {
+    }
+
+    /**
+     * @return DelightfulUserAuthorization
+     * @throws Throwable
+     */
+    public function user(): ?Authenticatable
+    {
+        $request = di(RequestInterface::class);
+        $logger = di(LoggerInterface::class);
+        $authorization = $request->header('authorization', '');
+        $organizationCode = $request->header('organization-code', '');
+
+        if (empty($authorization)) {
+            ExceptionBuilder::throw(UserErrorCode::TOKEN_NOT_FOUND);
+        }
+        if (empty($organizationCode)) {
+            ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_EXIST);
+        }
+        $cacheKey = 'auth_user:' . md5($authorization . $organizationCode);
+        $cachedResult = $this->redis->get($cacheKey);
+        if ($cachedResult) {
+            $user = unserialize($cachedResult, ['allowed_classes' => [DelightfulUserAuthorization::class]]);
+            if ($user instanceof DelightfulUserAuthorization) {
+                return $user;
+            }
+        }
+
+        try {
+            // downsurfacethissegmentactualcallis DelightfulUserAuthorization  retrieveById method
+            /** @var null|DelightfulUserAuthorization $user */
+            $user = $this->userProvider->retrieveByCredentials([
+                'authorization' => $authorization,
+                'organizationCode' => $organizationCode,
+            ]);
+            if ($user === null) {
+                ExceptionBuilder::throw(UserErrorCode::USER_NOT_EXIST);
+            }
+            if (empty($user->getOrganizationCode())) {
+                ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_EXIST);
+            }
+            if ($user instanceof DelightfulUserAuthorization) {
+                $this->redis->setex($cacheKey, 60, serialize($user));
+            }
+            $logger->info('WebUserGuard UserAuthorization', ['uid' => $user->getId(), 'name' => $user->getNickname(), 'organization' => $user->getOrganizationCode(), 'env' => $user->getDelightfulEnvId()]);
+            return $user;
+        } catch (Throwable $exception) {
+            $errMsg = [
+                'file' => $exception->getFile(),
+                'line' => $exception->getLine(),
+                'message' => $exception->getMessage(),
+                'code' => $exception->getCode(),
+                'trace' => $exception->getTraceAsString(),
+            ];
+            $logger->error('InternalUserGuard ' . Json::encode($errMsg));
+            throw $exception;
+        }
+    }
+
+    public function logout(): void
+    {
+    }
+
+    protected function resultKey($token): string
+    {
+        return md5($this->name . '.auth.result.' . $token);
+    }
+}

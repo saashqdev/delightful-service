@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+         backupGlobals="false"
+         bootstrap="./test/bootstrap.php"
+         colors="true"
+         processIsolation="false"
+         stopOnFailure="false"
+         cacheDirectory=".phpunit.cache"
+         backupStaticProperties="false" 
+         failOnWarning="false">
+
+  <!-- Environment variables -->
+  <php>
+    <env name="APP_ENV" value="testing"/>
+  </php>
+
+  <!-- Test suite definitions -->
+  <testsuites>
+    <testsuite name="Model gateway tests">
+      <directory suffix="Test.php">test/Cases/Api/ModelGateway</directory>
+    </testsuite>
+    <testsuite name="Login tests">
+      <directory suffix="Test.php">test/Cases/Api/Login</directory>
+      <directory suffix="Test.php">test/Cases/Api/Contact</directory>
+    </testsuite>
+    <testsuite name="Chat user API tests">
+      <directory suffix="Test.php">test/Cases/Api/Chat</directory>
+    </testsuite>
+    <testsuite name="Component tests">
+      <directory suffix="Test.php">test/Cases/Api/Kernel</directory>
+      <directory suffix="Test.php">test/Cases/Application/Kernel</directory>
+    </testsuite>
+    <testsuite name="Permission tests">
+      <directory suffix="Test.php">test/Cases/Application/Permission</directory>
+      <directory suffix="Test.php">test/Cases/Permission</directory>
+      <directory suffix="Test.php">test/Cases/Api/Permission</directory>
+    </testsuite>
+    <testsuite name="Organization tests">
+      <directory suffix="Test.php">test/Cases/Domain/Organization</directory>
+    </testsuite>
+    <testsuite name="Admin console tests">
+      <directory suffix="Test.php">test/Cases/Api/Admin</directory>
+    </testsuite>
+  </testsuites>
+
+  <!-- Coverage include paths (not the test directories) -->
+  <source>
+    <include>
+      <directory suffix=".php">app</directory>
+    </include>
+  </source>
+
+  <!-- Coverage configuration (PHPUnit 10.x structure)
+
+  <coverage enabled="false" includeUncoveredFiles="false"
+            pathCoverage="false"
+            ignoreDeprecatedCodeUnits="true"
+            disableCodeCoverageIgnore="true">
+    <report>
+      <text outputFile="coverage/text.txt" showUncoveredFiles="false"/>
+      <cobertura outputFile="coverage/cobertura.xml"/>
+      <clover outputFile="coverage/clover.xml"/>
+      <html outputDirectory="coverage/html" lowUpperBound="35" highLowerBound="70"/>
+    </report>
+  </coverage> -->
+
+  <!-- Logging configuration -->
+  <logging>
+    <junit outputFile="coverage/junit.xml"/>
+    <teamcity outputFile="coverage/teamcity.txt"/>
+    <testdoxHtml outputFile="coverage/testdox.html"/>
+    <testdoxText outputFile="coverage/testdox.txt"/>
+  </logging>
+
+  <!-- Extensions (compatible with PHPUnit 10) -->
+  <extensions>
+    <bootstrap class="HyperfTest\Extensions\Runners\SlowestTests\Extension">
+      <parameter name="maxTests" value="100"/>  <!-- Maximum collected tests -->
+      <parameter name="minDuration" value="1000"/> <!-- Minimum duration (ms) -->
+    </bootstrap>
+  </extensions>
+</phpunit>

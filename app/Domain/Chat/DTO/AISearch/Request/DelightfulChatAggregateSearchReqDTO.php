@@ -1,0 +1,222 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Chat\DTO\AISearch\Request;
+
+use App\Domain\Chat\DTO\Message\ChatMessage\RichTextMessage;
+use App\Domain\Chat\DTO\Message\ChatMessage\TextMessage;
+use App\Domain\Chat\DTO\Message\MessageInterface;
+use App\Domain\Chat\Entity\DelightfulSeqEntity;
+use App\Domain\Chat\Entity\ValueObject\AggregateSearch\SearchDeepLevel;
+use App\Domain\Chat\Entity\ValueObject\SearchEngineType;
+use App\Infrastructure\Util\Tiptap\TiptapUtil;
+use Exception;
+use Hyperf\Odin\Memory\MessageHistory;
+use Hyperf\Odin\Message\AssistantMessage;
+use Hyperf\Odin\Message\UserMessage;
+
+class DelightfulChatAggregateSearchReqDTO
+{
+    public string $userMessage;
+
+    public string $conversationId;
+
+    public string $topicId = ''; // topic id,canfornull
+
+    public bool $getDetail = true;
+
+    public string $appMessageId;
+
+    public array $delightfulChatMessageHistory = [];
+
+    public SearchEngineType $searchEngine = SearchEngineType::Bing;
+
+    public string $language = 'en_US';
+
+    public ?string $requestId = null;
+
+    public SearchDeepLevel $searchDeepLevel = SearchDeepLevel::SIMPLE;
+
+    public string $userId = '';
+
+    protected string $organizationCode = '';
+
+    private DelightfulSeqEntity $delightfulSeqEntity;
+
+    public function getOrganizationCode(): string
+    {
+        return $this->organizationCode;
+    }
+
+    public function setOrganizationCode(string $organizationCode): self
+    {
+        $this->organizationCode = $organizationCode;
+        return $this;
+    }
+
+    public function getUserId(): string
+    {
+        return $this->userId;
+    }
+
+    public function setUserId(string $userId): self
+    {
+        $this->userId = $userId;
+        return $this;
+    }
+
+    public function getTopicId(): string
+    {
+        return $this->topicId;
+    }
+
+    public function setTopicId(string $topicId): self
+    {
+        $this->topicId = $topicId;
+        return $this;
+    }
+
+    public function getConversationId(): string
+    {
+        return $this->conversationId ?? '';
+    }
+
+    public function setConversationId(string $conversationId): self
+    {
+        $this->conversationId = $conversationId;
+        return $this;
+    }
+
+    public function getUserMessage(): string
+    {
+        return $this->userMessage ?? '';
+    }
+
+    public function setUserMessage(MessageInterface $userMessage): self
+    {
+        if ($userMessage instanceof TextMessage) {
+            $this->userMessage = $userMessage->getContent();
+        } elseif ($userMessage instanceof RichTextMessage) {
+            $text = TiptapUtil::getTextContent($userMessage->getContent());
+            $this->userMessage = $text;
+        } else {
+            throw new Exception('not supportedmessagetype');
+        }
+
+        return $this;
+    }
+
+    public function getSearchEngine(): SearchEngineType
+    {
+        return $this->searchEngine;
+    }
+
+    public function setSearchEngine(SearchEngineType $searchEngine): self
+    {
+        $this->searchEngine = $searchEngine;
+        return $this;
+    }
+
+    public function isGetDetail(): bool
+    {
+        return $this->getDetail ?? false;
+    }
+
+    public function setGetDetail(bool $getDetail): DelightfulChatAggregateSearchReqDTO
+    {
+        $this->getDetail = $getDetail;
+        return $this;
+    }
+
+    public function getAppMessageId(): string
+    {
+        return $this->appMessageId ?? '';
+    }
+
+    public function setAppMessageId(string $appMessageId): DelightfulChatAggregateSearchReqDTO
+    {
+        $this->appMessageId = $appMessageId;
+        return $this;
+    }
+
+    public function getDelightfulChatMessageHistory(): array
+    {
+        return $this->delightfulChatMessageHistory;
+    }
+
+    public function setDelightfulChatMessageHistory(array $delightfulChatMessageHistory): DelightfulChatAggregateSearchReqDTO
+    {
+        $this->delightfulChatMessageHistory = $delightfulChatMessageHistory;
+        return $this;
+    }
+
+    public function getLanguage(): string
+    {
+        return $this->language;
+    }
+
+    public function setLanguage(string $language): DelightfulChatAggregateSearchReqDTO
+    {
+        $this->language = $language;
+        return $this;
+    }
+
+    public function getRequestId(): ?string
+    {
+        return $this->requestId;
+    }
+
+    public function setRequestId(?string $requestId): DelightfulChatAggregateSearchReqDTO
+    {
+        $this->requestId = $requestId;
+        return $this;
+    }
+
+    public function getSearchDeepLevel(): SearchDeepLevel
+    {
+        return $this->searchDeepLevel;
+    }
+
+    public function setSearchDeepLevel(SearchDeepLevel $searchDeepLevel): DelightfulChatAggregateSearchReqDTO
+    {
+        $this->searchDeepLevel = $searchDeepLevel;
+        return $this;
+    }
+
+    public static function generateLLMHistory(array $rawHistoryMessages, string $llmConversationId): MessageHistory
+    {
+        $history = new MessageHistory();
+        foreach ($rawHistoryMessages as $rawHistoryMessage) {
+            $role = $rawHistoryMessage['role'] ?? '';
+            $content = $rawHistoryMessage['content'] ?? '';
+            if (empty($content)) {
+                continue;
+            }
+            $messageInterface = null;
+            switch ($role) {
+                case 'user':
+                    $messageInterface = new UserMessage($content);
+                    break;
+                case 'assistant':
+                    $messageInterface = new AssistantMessage($content);
+                    break;
+            }
+            isset($messageInterface) && $history->addMessages($messageInterface, $llmConversationId);
+        }
+        return $history;
+    }
+
+    public function getDelightfulSeqEntity(): DelightfulSeqEntity
+    {
+        return $this->delightfulSeqEntity ?? new DelightfulSeqEntity();
+    }
+
+    public function setDelightfulSeqEntity(DelightfulSeqEntity $delightfulSeqEntity): void
+    {
+        $this->delightfulSeqEntity = $delightfulSeqEntity;
+    }
+}

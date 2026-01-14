@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces;
+
+interface DocumentFileInterface
+{
+    public function getDocType(): ?int;
+
+    public function getName(): string;
+
+    public function getPlatformType(): ?string;
+
+    public function getThirdFileId(): ?string;
+
+    public function toArray(): array;
+}

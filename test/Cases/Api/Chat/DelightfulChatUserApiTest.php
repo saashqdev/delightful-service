@@ -1,0 +1,593 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace HyperfTest\Cases\Api\Chat;
+
+use HyperfTest\Cases\Api\AbstractHttpTest;
+
+/**
+ * @internal
+ * DelightfulchatuserAPItest
+ */
+class DelightfulChatUserApiTest extends AbstractHttpTest
+{
+    private const string UPDATE_USER_INFO_API = '/api/v1/contact/users/me';
+
+    private const string GET_USER_UPDATE_PERMISSION_API = '/api/v1/contact/users/me/update-permission';
+
+    private const string LOGIN_API = '/api/v1/sessions';
+
+    /**
+     * loginaccountnumber:13800138001
+     * password:123456.
+     */
+    private const string TEST_PHONE = '13800138001';
+
+    private const string TEST_PASSWORD = '123456';
+
+    private const string TEST_STATE_CODE = '+86';
+
+    private const string TEST_ORGANIZATION_CODE = 'test001';
+
+    /**
+     * storageloginbacktoken.
+     */
+    private static string $accessToken = '';
+
+    /**
+     * testcompleteupdateuserinfo - update havefield.
+     */
+    public function testUpdateUserInfoWithAllFields(): void
+    {
+        // firstlogingettoken
+        $token = $this->performLogin();
+        echo "\nusetokenconductuserinfoupdate: " . $token . "\n";
+
+        $requestData = [
+            'avatar_url' => 'https://example.com/avatar/new-avatar.jpg',
+            'nickname' => 'newnickname',
+        ];
+
+        $headers = $this->getTestHeaders();
+        echo "\nrequestheadinfo: " . json_encode($headers, JSON_UNESCAPED_UNICODE) . "\n";
+
+        $response = $this->patch(self::UPDATE_USER_INFO_API, $requestData, $headers);
+
+        echo "\nresponseresult: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n";
+
+        // checkresponsewhetherforarray
+        $this->assertIsArray($response, 'responseshouldisarrayformat');
+
+        // ifresponsecontainerrorinfo,outputdetailedinfo
+        if (isset($response['code']) && $response['code'] !== 1000) {
+            echo "\ninterfacereturnerror: code=" . $response['code'] . ', message=' . ($response['message'] ?? 'unknown') . "\n";
+
+            // ifisauthenticationerror,wecanacceptandskiptest
+            if ($response['code'] === 2179 || $response['code'] === 3035) {
+                $this->markTestSkipped('interfaceauthenticationfail,maybeneedotherauthenticationconfiguration - interfacepathbyvalidatenormal');
+                return;
+            }
+        }
+
+        // validateresponsestructure - checkwhetherhavedatafield
+        $this->assertArrayHasKey('data', $response, 'responseshouldcontaindatafield');
+        $this->assertEquals(1000, $response['code'], 'shouldreturnsuccessresponsecode');
+
+        $userData = $response['data'];
+
+        // validateuserdatastructure - checkclosekeyfieldexistsin
+        $this->assertArrayHasKey('id', $userData, 'responseshouldcontainidfield');
+        $this->assertArrayHasKey('avatar_url', $userData, 'responseshouldcontainavatar_urlfield');
+        $this->assertArrayHasKey('nickname', $userData, 'responseshouldcontainnicknamefield');
+        $this->assertArrayHasKey('organization_code', $userData, 'responseshouldcontainorganization_codefield');
+        $this->assertArrayHasKey('user_id', $userData, 'responseshouldcontainuser_idfield');
+        $this->assertArrayHasKey('created_at', $userData, 'responseshouldcontaincreated_atfield');
+        $this->assertArrayHasKey('updated_at', $userData, 'responseshouldcontainupdated_atfield');
+
+        // validateclosekeyfieldnotfornull
+        $this->assertNotEmpty($userData['id'], 'idfieldnotshouldfornull');
+        $this->assertNotEmpty($userData['organization_code'], 'organization_codefieldnotshouldfornull');
+        $this->assertNotEmpty($userData['user_id'], 'user_idfieldnotshouldfornull');
+        $this->assertNotEmpty($userData['created_at'], 'created_atfieldnotshouldfornull');
+        $this->assertNotEmpty($userData['updated_at'], 'updated_atfieldnotshouldfornull');
+
+        // validatemorenewspecificfieldvalue
+        $this->assertEquals($requestData['avatar_url'], $userData['avatar_url'], 'avatarURLupdatefail');
+        $this->assertEquals($requestData['nickname'], $userData['nickname'], 'nicknameupdatefail');
+    }
+
+    /**
+     * testonlyupdateavatar.
+     */
+    public function testUpdateUserInfoWithAvatarOnly(): void
+    {
+        // firstlogingettoken
+        $this->performLogin();
+
+        $requestData = [
+            'avatar_url' => 'https://example.com/avatar/updated-avatar.png',
+        ];
+
+        $response = $this->patch(self::UPDATE_USER_INFO_API, $requestData, $this->getTestHeaders());
+
+        $this->assertIsArray($response, 'responseshouldisarrayformat');
+
+        // ifisauthenticationerror,skiptest
+        if (isset($response['code']) && ($response['code'] === 2179 || $response['code'] === 3035)) {
+            $this->markTestSkipped('interfaceauthenticationfail');
+            return;
+        }
+
+        $this->assertArrayHasKey('data', $response, 'responseshouldcontaindatafield');
+        $this->assertEquals(1000, $response['code'], 'shouldreturnsuccessresponsecode');
+
+        $userData = $response['data'];
+        $this->assertArrayHasKey('avatar_url', $userData, 'responseshouldcontainavatar_urlfield');
+        $this->assertEquals($requestData['avatar_url'], $userData['avatar_url'], 'avatarURLshouldbecorrectupdate');
+        $this->assertArrayHasKey('nickname', $userData, 'responseshouldcontainnicknamefield');
+    }
+
+    /**
+     * testonlyupdatenickname.
+     */
+    public function testUpdateUserInfoWithNicknameOnly(): void
+    {
+        // firstlogingettoken
+        $this->performLogin();
+
+        $requestData = [
+            'nickname' => 'SuperUser2024',
+        ];
+
+        $response = $this->patch(self::UPDATE_USER_INFO_API, $requestData, $this->getTestHeaders());
+
+        $this->assertIsArray($response, 'responseshouldisarrayformat');
+
+        // ifisauthenticationerror,skiptest
+        if (isset($response['code']) && ($response['code'] === 2179 || $response['code'] === 3035)) {
+            $this->markTestSkipped('interfaceauthenticationfail');
+            return;
+        }
+
+        $this->assertArrayHasKey('data', $response, 'responseshouldcontaindatafield');
+        $this->assertEquals(1000, $response['code'], 'shouldreturnsuccessresponsecode');
+
+        $userData = $response['data'];
+        $this->assertArrayHasKey('nickname', $userData, 'responseshouldcontainnicknamefield');
+        $this->assertEquals($requestData['nickname'], $userData['nickname'], 'nicknameshouldbecorrectupdate');
+    }
+
+    /**
+     * testnullparameterupdate - notpassanyfield.
+     */
+    public function testUpdateUserInfoWithEmptyData(): void
+    {
+        // firstlogingettoken
+        $this->performLogin();
+
+        $requestData = [];
+
+        $response = $this->patch(self::UPDATE_USER_INFO_API, $requestData, $this->getTestHeaders());
+
+        // nullparameterdownshouldnormalreturncurrentuserinfo,noterror
+        $this->assertIsArray($response, 'responseshouldisarrayformat');
+
+        // ifisauthenticationerror,skiptest
+        if (isset($response['code']) && ($response['code'] === 2179 || $response['code'] === 3035)) {
+            $this->markTestSkipped('interfaceauthenticationfail');
+            return;
+        }
+
+        $this->assertArrayHasKey('data', $response, 'responseshouldcontaindatafield');
+        $this->assertEquals(1000, $response['code'], 'shouldreturnsuccessresponsecode');
+
+        $userData = $response['data'];
+
+        // validateclosekeyfieldexistsin
+        $this->assertArrayHasKey('id', $userData, 'responseshouldcontainidfield');
+        $this->assertArrayHasKey('organization_code', $userData, 'responseshouldcontainorganization_codefield');
+        $this->assertArrayHasKey('user_id', $userData, 'responseshouldcontainuser_idfield');
+        $this->assertArrayHasKey('created_at', $userData, 'responseshouldcontaincreated_atfield');
+        $this->assertArrayHasKey('updated_at', $userData, 'responseshouldcontainupdated_atfield');
+
+        // validateclosekeyfieldnotfornull
+        $this->assertNotEmpty($userData['id'], 'idfieldnotshouldfornull');
+        $this->assertNotEmpty($userData['organization_code'], 'organization_codefieldnotshouldfornull');
+        $this->assertNotEmpty($userData['user_id'], 'user_idfieldnotshouldfornull');
+        $this->assertNotEmpty($userData['created_at'], 'created_atfieldnotshouldfornull');
+        $this->assertNotEmpty($userData['updated_at'], 'updated_atfieldnotshouldfornull');
+    }
+
+    /**
+     * testnullvaluehandle.
+     */
+    public function testUpdateUserInfoWithNullValues(): void
+    {
+        // firstlogingettoken
+        $this->performLogin();
+
+        $requestData = [
+            'avatar_url' => null,
+            'nickname' => null,
+        ];
+
+        $response = $this->patch(self::UPDATE_USER_INFO_API, $requestData, $this->getTestHeaders());
+
+        // nullvalueshouldbecorrecthandle,notcauseerror
+        $this->assertIsArray($response, 'pass innullvalueo clockshouldnormalreturnresponse');
+
+        // ifisauthenticationerror,skiptest
+        if (isset($response['code']) && ($response['code'] === 2179 || $response['code'] === 3035)) {
+            $this->markTestSkipped('interfaceauthenticationfail');
+            return;
+        }
+
+        $this->assertArrayHasKey('data', $response, 'responseshouldcontaindatafield');
+        $this->assertEquals(1000, $response['code'], 'shouldreturnsuccessresponsecode');
+
+        $userData = $response['data'];
+        $this->assertArrayHasKey('id', $userData, 'responseshouldcontainuserID');
+    }
+
+    /**
+     * testspecialcharacterhandle.
+     */
+    public function testUpdateUserInfoWithSpecialCharacters(): void
+    {
+        // firstlogingettoken
+        $this->performLogin();
+
+        $requestData = [
+            'nickname' => 'testuser🎉',
+        ];
+
+        $response = $this->patch(self::UPDATE_USER_INFO_API, $requestData, $this->getTestHeaders());
+
+        $this->assertIsArray($response, 'responseshouldisarrayformat');
+
+        // ifisauthenticationerror,skiptest
+        if (isset($response['code']) && ($response['code'] === 2179 || $response['code'] === 3035)) {
+            $this->markTestSkipped('interfaceauthenticationfail');
+            return;
+        }
+
+        $this->assertArrayHasKey('data', $response, 'responseshouldcontaindatafield');
+        $this->assertEquals(1000, $response['code'], 'shouldreturnsuccessresponsecode');
+
+        $userData = $response['data'];
+        $this->assertEquals($requestData['nickname'], $userData['nickname'], 'shouldcorrecthandlecontainemojinickname');
+    }
+
+    /**
+     * testlongstringhandle.
+     */
+    public function testUpdateUserInfoWithLongStrings(): void
+    {
+        // firstlogingettoken
+        $this->performLogin();
+
+        $requestData = [
+            'nickname' => str_repeat('verylongnickname', 10), // 50character
+            'avatar_url' => 'https://example.com/very/long/path/to/avatar/' . str_repeat('long-filename', 5) . '.jpg',
+        ];
+
+        $response = $this->patch(self::UPDATE_USER_INFO_API, $requestData, $this->getTestHeaders());
+
+        // validatelongstringwhetherbecorrecthandle(maybebetruncateorreject)
+        $this->assertIsArray($response, 'longstringshouldbecorrecthandle');
+
+        // ifisauthenticationerror,skiptest
+        if (isset($response['code']) && ($response['code'] === 2179 || $response['code'] === 3035)) {
+            $this->markTestSkipped('interfaceauthenticationfail');
+            return;
+        }
+
+        $this->assertArrayHasKey('data', $response, 'responseshouldcontaindatafield');
+        $this->assertEquals(1000, $response['code'], 'shouldreturnsuccessresponsecode');
+
+        $userData = $response['data'];
+        $this->assertArrayHasKey('nickname', $userData, 'responseshouldcontainnicknamefield');
+        $this->assertArrayHasKey('avatar_url', $userData, 'responseshouldcontainavatar_urlfield');
+    }
+
+    /**
+     * testinvalidavatarURLformat.
+     */
+    public function testUpdateUserInfoWithInvalidAvatarUrl(): void
+    {
+        // firstlogingettoken
+        $this->performLogin();
+
+        $requestData = [
+            'avatar_url' => 'invalid-url-format',
+        ];
+
+        $response = $this->patch(self::UPDATE_USER_INFO_API, $requestData, $this->getTestHeaders());
+
+        // according tobusinesslogic,maybeacceptanystringasforavatar_url,orconductvalidate
+        $this->assertIsArray($response, 'invalidURLformatshouldbeproperlyhandle');
+
+        // ifisauthenticationerror,skiptest
+        if (isset($response['code']) && ($response['code'] === 2179 || $response['code'] === 3035)) {
+            $this->markTestSkipped('interfaceauthenticationfail');
+        }
+    }
+
+    /**
+     * testdepartmentminutefieldupdatebackdatacompleteproperty.
+     */
+    public function testUpdateUserInfoDataIntegrity(): void
+    {
+        // firstlogingettoken
+        $this->performLogin();
+
+        // theonetimeupdate:onlyupdatenickname
+        $firstUpdateData = [
+            'nickname' => 'theonetimemorenewnickname',
+        ];
+
+        $firstResponse = $this->patch(self::UPDATE_USER_INFO_API, $firstUpdateData, $this->getTestHeaders());
+        $this->assertIsArray($firstResponse, 'theonetimeupdateresponseshouldisarrayformat');
+
+        // ifisauthenticationerror,skiptest
+        if (isset($firstResponse['code']) && ($firstResponse['code'] === 2179 || $firstResponse['code'] === 3035)) {
+            $this->markTestSkipped('interfaceauthenticationfail');
+            return;
+        }
+
+        $this->assertArrayHasKey('data', $firstResponse, 'theonetimeupdateresponseshouldcontaindatafield');
+        $this->assertEquals(1000, $firstResponse['code'], 'theonetimeupdateshouldreturnsuccessresponsecode');
+
+        $firstUserData = $firstResponse['data'];
+        $originalAvatarUrl = $firstUserData['avatar_url'] ?? null;
+
+        // thetwotimeupdate:onlyupdateavatar
+        $secondUpdateData = [
+            'avatar_url' => 'https://example.com/new-avatar-2.jpg',
+        ];
+
+        $secondResponse = $this->patch(self::UPDATE_USER_INFO_API, $secondUpdateData, $this->getTestHeaders());
+        $this->assertIsArray($secondResponse, 'thetwotimeupdateresponseshouldisarrayformat');
+        $this->assertArrayHasKey('data', $secondResponse, 'thetwotimeupdateresponseshouldcontaindatafield');
+        $this->assertEquals(1000, $secondResponse['code'], 'thetwotimeupdateshouldreturnsuccessresponsecode');
+
+        $secondUserData = $secondResponse['data'];
+
+        // validatedatacompleteproperty:nicknameshouldmaintaintheonetimemorenewvalue
+        $this->assertEquals($firstUpdateData['nickname'], $secondUserData['nickname'], 'nicknameshouldmaintaintheonetimemorenewvalue');
+        $this->assertEquals($secondUpdateData['avatar_url'], $secondUserData['avatar_url'], 'avatarshouldforthetwotimemorenewvalue');
+    }
+
+    /**
+     * testnotauthorizationaccess.
+     */
+    public function testUpdateUserInfoWithoutAuthorization(): void
+    {
+        $requestData = [
+            'nickname' => 'testnickname',
+        ];
+
+        // notcontainauthorizationheadrequest
+        $response = $this->patch(self::UPDATE_USER_INFO_API, $requestData, [
+            'Content-Type' => 'application/json',
+        ]);
+
+        // shouldreturnauthorizationerror
+        $this->assertIsArray($response, 'responseshouldisarrayformat');
+        $this->assertArrayHasKey('code', $response, 'notauthorizationrequestshouldreturnerrorcode');
+        $this->assertNotEquals(1000, $response['code'] ?? 1000, 'notauthorizationrequestnotshouldreturnsuccesscode');
+    }
+
+    /**
+     * testgetuserupdatepermission - normalsituation.
+     */
+    public function testGetUserUpdatePermissionSuccess(): void
+    {
+        // firstlogingettoken
+        $token = $this->performLogin();
+        echo "\nusetokengetuserupdatepermission: " . $token . "\n";
+
+        $headers = $this->getTestHeaders();
+        echo "\nrequestheadinfo: " . json_encode($headers, JSON_UNESCAPED_UNICODE) . "\n";
+
+        $response = $this->get(self::GET_USER_UPDATE_PERMISSION_API, $headers);
+
+        echo "\nresponseresult: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n";
+
+        // checkresponsewhetherforarray
+        $this->assertIsArray($response, 'responseshouldisarrayformat');
+
+        // ifresponsecontainerrorinfo,outputdetailedinfo
+        if (isset($response['code']) && $response['code'] !== 1000) {
+            echo "\ninterfacereturnerror: code=" . $response['code'] . ', message=' . ($response['message'] ?? 'unknown') . "\n";
+
+            // ifisauthenticationerror,wecanacceptandskiptest
+            if ($response['code'] === 2179 || $response['code'] === 3035) {
+                $this->markTestSkipped('interfaceauthenticationfail,maybeneedotherauthenticationconfiguration - interfacepathbyvalidatenormal');
+                return;
+            }
+        }
+
+        // validateresponsestructure
+        $this->assertArrayHasKey('data', $response, 'responseshouldcontaindatafield');
+        $this->assertEquals(1000, $response['code'], 'shouldreturnsuccessresponsecode');
+
+        $permissionData = $response['data'];
+
+        // validatepermissiondatastructure
+        $this->assertArrayHasKey('permission', $permissionData, 'responseshouldcontainpermissionfield');
+        $this->assertIsNotArray($permissionData['permission'], 'permissionfieldnotshouldisarray');
+        $this->assertNotNull($permissionData['permission'], 'permissionfieldnotshouldfornull');
+    }
+
+    /**
+     * testgetuserupdatepermission - notauthorizationaccess.
+     */
+    public function testGetUserUpdatePermissionWithoutAuthorization(): void
+    {
+        // notcontainauthorizationheadrequest
+        $response = $this->get(self::GET_USER_UPDATE_PERMISSION_API, [
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+        ]);
+
+        // shouldreturnauthorizationerror
+        $this->assertIsArray($response, 'responseshouldisarrayformat');
+        $this->assertArrayHasKey('code', $response, 'notauthorizationrequestshouldreturnerrorcode');
+        $this->assertNotEquals(1000, $response['code'] ?? 1000, 'notauthorizationrequestnotshouldreturnsuccesscode');
+
+        // commonnotauthorizationerrorcode
+        $unauthorizedCodes = [2179, 3035, 401, 403];
+        $this->assertContains($response['code'] ?? 0, $unauthorizedCodes, 'shouldreturnnotauthorizationerrorcode');
+    }
+
+    /**
+     * testgetuserupdatepermission - invalidtoken.
+     */
+    public function testGetUserUpdatePermissionWithInvalidToken(): void
+    {
+        $headers = [
+            'Authorization' => 'invalid_token_123456',
+            'organization-code' => self::TEST_ORGANIZATION_CODE,
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+        ];
+
+        $response = $this->get(self::GET_USER_UPDATE_PERMISSION_API, $headers);
+
+        // shouldreturnauthorizationerror
+        $this->assertIsArray($response, 'responseshouldisarrayformat');
+        $this->assertArrayHasKey('code', $response, 'invalidtokenrequestshouldreturnerrorcode');
+        $this->assertNotEquals(1000, $response['code'] ?? 1000, 'invalidtokenrequestnotshouldreturnsuccesscode');
+    }
+
+    /**
+     * testgetuserupdatepermission - missingorganization-code.
+     */
+    public function testGetUserUpdatePermissionWithoutOrganizationCode(): void
+    {
+        // firstlogingettoken
+        $token = $this->performLogin();
+
+        $headers = [
+            'Authorization' => $token,
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+            // intentionalnotcontain organization-code
+        ];
+
+        $response = $this->get(self::GET_USER_UPDATE_PERMISSION_API, $headers);
+
+        // maybereturnerrororsuccess,depend onatbusinesslogic
+        $this->assertIsArray($response, 'responseshouldisarrayformat');
+        $this->assertArrayHasKey('code', $response, 'responseshouldcontaincodefield');
+
+        // ifsuccess,validatedatastructure
+        if ($response['code'] === 1000) {
+            $this->assertArrayHasKey('data', $response, 'successresponseshouldcontaindatafield');
+            $permissionData = $response['data'];
+            $this->assertArrayHasKey('permission', $permissionData, 'responseshouldcontainpermissionfield');
+            $this->assertIsNotArray($permissionData['permission'], 'permissionfieldnotshouldisarray');
+            $this->assertNotNull($permissionData['permission'], 'permissionfieldnotshouldfornull');
+        }
+    }
+
+    /**
+     * testgetuserupdatepermission - HTTPmethodvalidate.
+     */
+    public function testGetUserUpdatePermissionHttpMethod(): void
+    {
+        // firstlogingettoken
+        $token = $this->performLogin();
+        $headers = $this->getTestHeaders();
+
+        // testerrorHTTPmethod(POST)
+        $postResponse = $this->post(self::GET_USER_UPDATE_PERMISSION_API, [], $headers);
+
+        // shouldreturnmethodnotallowerror
+        if ($postResponse !== null) {
+            $this->assertIsArray($postResponse, 'POSTresponseshouldisarrayformat');
+            if (isset($postResponse['code'])) {
+                // ifnotisauthenticationissue,shouldismethoderror
+                if (! in_array($postResponse['code'], [2179, 3035])) {
+                    $this->assertNotEquals(1000, $postResponse['code'], 'POSTmethodnotshouldsuccess');
+                }
+            }
+        } else {
+            // ifreturnnull,instructionmethodbecorrectreject
+            $this->assertTrue(true, 'POSTmethodbecorrectreject');
+        }
+
+        // testerrorHTTPmethod(PUT)
+        $putResponse = $this->put(self::GET_USER_UPDATE_PERMISSION_API, [], $headers);
+
+        // shouldreturnmethodnotallowerror
+        if ($putResponse !== null) {
+            $this->assertIsArray($putResponse, 'PUTresponseshouldisarrayformat');
+            if (isset($putResponse['code'])) {
+                // ifnotisauthenticationissue,shouldismethoderror
+                if (! in_array($putResponse['code'], [2179, 3035])) {
+                    $this->assertNotEquals(1000, $putResponse['code'], 'PUTmethodnotshouldsuccess');
+                }
+            }
+        } else {
+            // ifreturnnull,instructionmethodbecorrectreject
+            $this->assertTrue(true, 'PUTmethodbecorrectreject');
+        }
+    }
+
+    /**
+     * executeloginandgetaccesstoken.
+     */
+    private function performLogin(): string
+    {
+        // ifalreadyalreadyhavetoken,directlyreturn
+        if (! empty(self::$accessToken)) {
+            return self::$accessToken;
+        }
+
+        $loginData = [
+            'state_code' => self::TEST_STATE_CODE,
+            'phone' => self::TEST_PHONE,
+            'password' => self::TEST_PASSWORD,
+            'type' => 'phone_password',
+        ];
+
+        $loginResponse = $this->json(self::LOGIN_API, $loginData, [
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+        ]);
+
+        // validateloginwhethersuccess
+        $this->assertIsArray($loginResponse, 'loginresponseshouldisarrayformat');
+        $this->assertEquals(1000, $loginResponse['code'] ?? 0, 'loginshouldsuccess');
+        $this->assertArrayHasKey('data', $loginResponse, 'loginresponseshouldcontaindatafield');
+        $this->assertArrayHasKey('access_token', $loginResponse['data'], 'loginresponseshouldcontainaccess_token');
+
+        // cachetoken
+        self::$accessToken = $loginResponse['data']['access_token'];
+
+        // outputdebuginfo
+        echo "\nloginsuccess,obtaintoken: " . self::$accessToken . "\n";
+        echo "\ncompleteloginresponse: " . json_encode($loginResponse, JSON_UNESCAPED_UNICODE) . "\n";
+
+        return self::$accessToken;
+    }
+
+    /**
+     * gettestuserequesthead.
+     */
+    private function getTestHeaders(): array
+    {
+        return [
+            'Authorization' => self::$accessToken,
+            'organization-code' => self::TEST_ORGANIZATION_CODE,
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+        ];
+    }
+}
