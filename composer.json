@@ -98,7 +98,7 @@
   },
   "autoload": {
     "psr-4": {
-      "App\\": "App/"
+      "App\\": "app/"
     },
     "files": [
       "app/Infrastructure/Util/Functions/functions.php"
