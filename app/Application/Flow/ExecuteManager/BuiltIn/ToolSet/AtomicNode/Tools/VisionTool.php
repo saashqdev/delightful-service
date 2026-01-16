@@ -243,14 +243,14 @@ JSON, true)));
    - technologyinfo:likehavegraphtable/data,analyzeitsimplication
    
 4. analyzeformatrequire:
-   - toatreloadwantanalyzeresult,usestructureizationJSONformatpresent,like:{"categoryother":"xx", "mainbody":"xx", "feature":["xx","xx"]}
-   - toatnotcertaincontent,explicittableclearspeculatedpropertyquality,for example:"maybeis..."
-   - likeimagequalitymorelow,fingeroutlimitelementanddo one's bestanalyze
+   - toatreloadwantanalyzeresult,usestructureizationJSONformatpresent,like:{\"categoryother\":\"xx\", \"mainbody\":\"xx\", \"feature\":[\"xx\",\"xx\"]}
+   - toatnotcertaincontent,explicittableclearspeculatedpropertyquality,for example:\"maybeis...\"
+   - likeimagequalitymorelow,fingeroutlimitelementanddo one\'s bestanalyze
    - toatmultiplegraphanalyze,minuteothermarkimagesequencenumberconductparse,andsummaryitsassociateproperty
    
 5. noticethingitem:
    - avoidtosensitivecontentmake subjective judgment
-   - whennomethodcertainsomedepartmentminutecontento clock,franktablereachnotcertainproperty
+   - whennomethodcertainsomedepartmentminutecontent,franktablereachnotcertainproperty
    - maintainobjectiveprofessionallanguageair'),
         ]);
     }

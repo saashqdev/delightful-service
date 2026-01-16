@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Interfaces\MCP\Facade\Admin;
+
+use App\Application\Contact\Service\DelightfulUserSettingAppService;
+use BeDelightful\ApiResponse\Annotation\ApiResponse;
+use Hyperf\Di\Annotation\Inject;
+
+#[ApiResponse(version: 'low_code')]
+class MCPBeDelightfulProjectSettingAdminApi extends AbstractMCPAdminApi
+{
+    #[Inject]
+    protected DelightfulUserSettingAppService $delightfulUserSettingAppService;
+
+    public function save(string $projectId)
+    {
+        $authorization = $this->getAuthorization();
+        $userSetting = $this->delightfulUserSettingAppService->saveProjectMcpServerConfig($authorization, $projectId, $this->request->input('servers', []));
+        return $userSetting->getValue();
+    }
+
+    public function get(string $projectId)
+    {
+        $authorization = $this->getAuthorization();
+        $userSetting = $this->delightfulUserSettingAppService->getProjectMcpServerConfig($authorization, $projectId);
+        if ($userSetting) {
+            return $userSetting->getValue();
+        }
+        return [];
+    }
+}

@@ -1,0 +1,41 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) Be Delightful , Distributed under the MIT software license
+ */
+
+namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\BeAgent\Mention\Mcp;
+
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\BeAgent\Mention\AbstractMention;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\BeAgent\Mention\MentionType;
+
+final class McpMention extends AbstractMention
+{
+    public function getMentionTextStruct(): string
+    {
+        /** @var McpData $data */
+        $data = $this->getAttrs()?->getData();
+        if (! $data instanceof McpData) {
+            return '';
+        }
+
+        return $data->getName() ?? '';
+    }
+
+    public function getMentionJsonStruct(): array
+    {
+        /** @var McpData $data */
+        $data = $this->getAttrs()?->getData();
+        if (! $data instanceof McpData) {
+            return [];
+        }
+
+        return [
+            'type' => MentionType::MCP->value,
+            'id' => $data->getId(),
+            'name' => $data->getName(),
+            'icon' => $data->getIcon(),
+        ];
+    }
+}

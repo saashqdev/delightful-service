@@ -1,5 +1,5 @@
 {
-  "name": "bedelightful/delightful-service",
+  "name": "delightful/delightful-service",
   "type": "project",
   "keywords": [
     "php",
@@ -33,7 +33,7 @@
     "bedelightful/php-mcp": "0.1.*",
     "bedelightful/rule-engine-core": "~0.1",
     "bedelightful/sdk-base": "~0.1",
-    "bedelightful/be-delightful-module": "~v0.2",
+    "bedelightful/be-delightful-module": "^0.2",
     "bedelightful/task-scheduler": "~0.1",
     "bedelightful/tiptap": "~0.1",
     "facile-it/php-openid-client": "^0.3.5",
@@ -73,7 +73,7 @@
     "phpoffice/phpspreadsheet": "^2.0",
     "phpoffice/phpword": "^1.0",
     "spomky-labs/aes-key-wrap": "^7.0",
-    "swow/swow": "^1.6.1",
+    "swow/swow": "~1.6.1",
     "symfony/css-selector": "^7.1",
     "symfony/dom-crawler": "^7.1",
     "symfony/mime": "^7.1",
